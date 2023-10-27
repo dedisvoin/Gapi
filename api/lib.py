@@ -25,19 +25,23 @@ from colorama import Fore, Style
 from io import TextIOWrapper
 from ast import literal_eval
 from threading import Thread
-from typing import overload
+from typing import Callable, overload
 from typing import Iterable
 try:
     from libtypes import Color
 except:
     from .libtypes import Color
-from pygame import gfxdraw
+try:
+    from pygame import gfxdraw
+    gfx = True
+except:
+    gfx = False
 from typing import NewType
 from typing import Tuple
 from typing import Dict
 from time import sleep
 from typing import Any
-from copy import copy
+from copy import copy,deepcopy
 
 # imports ---------------------------------------
 
@@ -67,6 +71,12 @@ def run_file(file_name_: str , **kwargs):
 
 # math methods ----------------------------------
 
+def out_min_max(value: float, min: float, max: float):
+    if min<value<max:
+        return False
+    else:
+        return True
+
 def sign(num: int | float) -> bool | None:
     if num < 0:
         return -1
@@ -76,7 +86,7 @@ def sign(num: int | float) -> bool | None:
         return 0
 
 def posing(pos, dx=0, dy=0):
-    death_pos = copy(pos)
+    death_pos = deepcopy(pos)
     return [death_pos[0] + dx, death_pos[1] + dy]
 
 # math methods ----------------------------------
@@ -87,6 +97,10 @@ class Vector2:
     @staticmethod
     def Normal(pos1: Tuple[int, int] ,pos2: Tuple[int, int]) -> 'Vector2':
         return Vector2(pos1[0]-pos2[0], pos1[1]-pos2[1])
+    
+    @staticmethod
+    def Random(start: float, stop: float):
+        return Vector2(random.randint(start, stop), random.randint(start, stop))
     
     @overload
     def __init__(self, x_y: typing.Tuple[float, float]) -> "Vector2":
@@ -201,8 +215,6 @@ class Vector2:
         self.y -= vector_.y
 
         return self
-
-
 
 # vector ----------------------------------------
 
@@ -320,6 +332,15 @@ class Window:
         self.press_key = None
 
         self.key = None
+        
+        self.__update_methods = []
+        
+    def add_update_method(self, method: Callable):
+        self.__update_methods.append(method)
+        
+    def __update_update_methods(self):
+        for update_method in self.__update_methods:
+            update_method(self.delta)
 
     def __call__(
         self, fps=60, base_color="white", fps_view=True, exit_hot_key="esc"
@@ -412,7 +433,7 @@ class Window:
 
     def fps_view(self):
         self._win.blit(
-            self._fps_surf.render(f"FPS: {int( self.fps )}", "gray")(), (10, 10)
+            self._fps_surf.render(f"FPS: {int( self.fps )}",(100,100,200))(), (10, 10)
         )
 
     def update(
@@ -427,6 +448,8 @@ class Window:
 
         self.fps = fps
         self.__mathing_delta()
+        
+        self.__update_update_methods()
         try:
             self.__timer += 1 * self.delta
         except:
@@ -439,6 +462,7 @@ class Window:
             self.fps_view()
 
         return self._win_opened
+    
 
     def get_at(self, x: int, y: int) -> list:
         return self._win.get_at((x, y))
@@ -669,7 +693,7 @@ class Surface:
 class Text:
     def __init__(
         self,
-        font: pygame.Font,
+        font: pygame.font.Font,
         font_size: int,
         text: str = None,
         color: list | str = "white",
@@ -1196,6 +1220,18 @@ class StackedSprite:
 
         #Draw.draw_circle(surf, self._pos, 2, "blue")
 
+
+def load_tile_sheet(file_name: str, ts_size: Tuple[int,int], tiles_count: int, tile_size: Tuple[int, int] = [10, 10])-> Tuple[Sprite, ...]:
+    img = load_image(file_name)
+    sp_ind = 0
+    sprites = []
+    for j in range(ts_size[1]):
+        for i in range(ts_size[0]):
+            sprites.append(  Sprite(img.subsurface([i*tile_size[0],j*tile_size[1]], tile_size).convert() ))
+            sp_ind+=1
+            if sp_ind == tiles_count:
+                return sprites
+            
 # ! image methods -------------------------------
 
 # base math class -------------------------------
@@ -1288,7 +1324,7 @@ def angle_to_float(
 
 def triangulate(polygone_points_: Tuple[Tuple[int,int], ...]):
     return tripy.earclip(polygone_points_)
-    
+
 def in_rect(
     rect_pos_: typing.Tuple[float, float] | Vector2,
     rect_size_: typing.Tuple[float, float] | Vector2,
@@ -1368,7 +1404,6 @@ def in_polygone(
         
         
     return False
-        
 
 def sin(value: float) -> float:
     return math.sin(value)
@@ -2002,18 +2037,30 @@ class Draw:
             shapes_kvargs[i]['pos'][0]+=pos[0]
             shapes_kvargs[i]['pos'][1]+=pos[1]
             Draw.__dict__[shapes_functions[i]].__call__(surface=surface, **shapes_kvargs[i])
+
 # base draw class -------------------------------
 
 # base input class ------------------------------
 
 mouse__wheel = 0
+
 class Mouse:
     left = "_left"
     right = "_right"
     middle = "_middle"
+    press_event = '_press'
+    click_event = '_click'
 
     end_pos = [0, 0]
     pressed = False
+    def __init__(self, bt, type, id = None) -> None:
+        self.bt = bt
+        self.type = type
+        if id is None:
+            self.id = random.randint(0,999999999999)
+        else:
+            self.id = id
+        self.pressed = False
 
     @classmethod
     @property
@@ -2022,13 +2069,13 @@ class Mouse:
         return mouse__wheel
 
     @classmethod
-    def position(self, win_scale_: float = 1) -> list[int, int]:
-        pos = [*pygame.mouse.get_pos()]
-        if win_scale_ != 1:
-            win_scale_ += 0.5
-        pos[0] *= win_scale_
-        pos[1] *= win_scale_
-        return pos
+    @property
+    def pos(self) -> list[int, int]:
+        return [*pygame.mouse.get_pos()]
+
+    @classmethod
+    def position(self) -> list[int, int]:
+        return [*pygame.mouse.get_pos()]
 
     def set_position(self, pos: typing.Tuple[int, int]) -> None:
         pygame.mouse.set_pos(pos)
@@ -2041,7 +2088,6 @@ class Mouse:
     def set_show(self):
         pygame.mouse.set_visible(True)
 
-    @classmethod
     def press(self, button: str = left):
         if button == Mouse.left:
             return pygame.mouse.get_pressed()[0]
@@ -2050,7 +2096,6 @@ class Mouse:
         if button == Mouse.right:
             return pygame.mouse.get_pressed()[2]
 
-    @classmethod
     def click(self, button: str = left):
         p = self.press(button)
         if p:
@@ -2059,24 +2104,40 @@ class Mouse:
                 return True
             else:
                 return False
-        else:
+        if not self.press(button):
             self.pressed = False
             return False
 
     @classmethod
     @property
     def speed(self) -> typing.Tuple[int, int]:
-        pos = self.position()
-        dx = pos[0] - self.end_pos[0]
-        dy = pos[1] - self.end_pos[1]
-
-        self.end_pos = copy(pos)
-        return [dx, dy]
+        return pygame.mouse.get_rel()
 
     @classmethod
     def set_cursor(self, cursor: Any) -> None:
         pygame.mouse.set_cursor(cursor)
 
+class MouseEventHandler:
+    def __init__(self) -> None:
+        self.events: Tuple[Mouse, ...] = []
+        self.events_outputs = []
+    
+    def AddEvent(self, mouse_event: Mouse):
+        self.events.append(mouse_event)
+        
+    def GetEventById(self, id) -> Tuple[bool, ...]:
+        for event in self.events_outputs:
+            if event[1] == id:
+                return event[0]
+        
+    def EventsUpdate(self):
+        self.events_outputs = []
+        for event in self.events:
+            if event.type == Mouse.click_event:
+                self.events_outputs.append([event.click(event.bt), event.id])
+            if event.type == Mouse.press_event:
+                self.events_outputs.append([event.press(event.bt), event.id])
+            
 class Keyboard:
     def key_pressed(key):
         return keyboard.is_pressed(key)
@@ -2087,6 +2148,7 @@ class Keyboard:
             return keyboard.is_pressed(key)
         else:
             return False
+
 
 # base input class ------------------------------
 

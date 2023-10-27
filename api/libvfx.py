@@ -1,11 +1,11 @@
+from typing import Dict, Tuple
+from copy import deepcopy
+import pygame
+
 try:
     from .lib import *
 except:
     from lib import *
-import pygame
-from typing import Dict,Tuple
-from copy import deepcopy
-
 
 class particle_shapes:
     CIRCLE = 'CIRCLE_SHAPE'
@@ -126,13 +126,13 @@ class Particle(_particle):
     
     def init(self):
         ...
-     
+    
 class ParticleSpawner:
     def __init__(self, type_: particle_spawner_types = particle_spawner_types.RECT, 
-                 pos_: tuple[int,int] = [0,0], size_: Tuple[int,int] = [0,0],
-                 radius_: int = 0,
-                 pos1_: Tuple[int,int] = [0,0], pos2_: Tuple[int,int] = [0,0], 
-                 points_ : Tuple[Tuple[float,float], ...] = [] ) -> None:
+                pos_: tuple[int,int] = [0,0], size_: Tuple[int,int] = [0,0],
+                radius_: int = 0,
+                pos1_: Tuple[int,int] = [0,0], pos2_: Tuple[int,int] = [0,0], 
+                points_ : Tuple[Tuple[float,float], ...] = [] ) -> None:
         
         self._type = type_
         
@@ -444,7 +444,7 @@ class ParticleTurbulesity:
             
             
 
-     
+
 if __name__ == '__main__':
     p = Particle()
 
@@ -454,16 +454,8 @@ if __name__ == '__main__':
     p.set('size_randomer',[0,0])
     p.set('speed_angle',-90)
     p.set('speed_duration',0)
-    p.set('speed_friction',1)
+    p.set('speed_friction',0.999)
     p.SPEED_RANDOMER = 1
-  
-
-
-
-
-   
-
-
 
 
     win = Window()
@@ -474,7 +466,7 @@ if __name__ == '__main__':
 
 
     ts = ParticleTurbulesity()
-    mag = ParticleTurbulesity.MagnetCircle([160,100],150,0.01)
+    mag = ParticleTurbulesity.MagnetCircle([160,100],150,-0.05)
     mag2 = ParticleTurbulesity.MagnetRect([300,100],[200,100],Vector2(0.01,0))
     ts.add(mag)
     ts.add(mag2)

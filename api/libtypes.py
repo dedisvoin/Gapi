@@ -2,15 +2,21 @@ from typing import Any, Iterable, Iterator, Self, Callable, Tuple, NewType
 from collections.abc import Iterator
 from random import randint, choice
 from ast import literal_eval
+import random
+
 try:
     from .libdebug import Debug
 except:
     from libdebug import Debug
     
-import random
+
 
 DEB = Debug()
 
+Index_ = NewType("Index", int)
+
+all_lists = []
+all_dicts = []
 
 def id_generate(lenght_: int = 5):
     _syms = "abcdefghijklmnopqrstuvywz"
@@ -52,10 +58,6 @@ class Null:
         return type(self) != type(__value)
 
 
-Index_ = NewType("Index", int)
-
-
-all_lists = []
 
 
 class List:
@@ -547,9 +549,6 @@ class List:
     def id(self, id: int | str = None):
         if id is not None:
             self._id = id
-
-
-all_dicts = []
 
 
 class Dict:

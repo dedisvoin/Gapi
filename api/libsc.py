@@ -149,7 +149,6 @@ class Server:
                 except:
                     ...
 
-            
         return all_clients_packets
                 
         
