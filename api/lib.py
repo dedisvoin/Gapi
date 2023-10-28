@@ -43,12 +43,19 @@ from time import sleep
 from typing import Any
 from copy import copy,deepcopy
 
+
+# init ------------------------------------------
+__version__ = '1.2'
+print(Fore.GREEN+'G-api ' +Fore.BLACK+ '[ '+Fore.MAGENTA+f'version: {__version__}'+Fore.BLACK+' ]'+Fore.RESET)
+# init ------------------------------------------
+
+
 # imports ---------------------------------------
 
 
 # asyncio ---------------------------------------
 
-def create_task(func: callable):
+def create_task(func: Callable):
     return asyncio.create_task(func())
 
 def add_tasks(tasks: asyncio.Task | Tuple[asyncio.Task, ...]) -> asyncio.Future:
@@ -126,7 +133,10 @@ class Vector2:
 
     @property
     def lenght(self):
-        return vector_lenght(self._x, self._y)
+        l = vector_lenght(self._x, self._y)
+        if l == 0:
+            return 1
+        return l
 
     @lenght.setter
     def lenght(self, _value: int):
@@ -141,15 +151,16 @@ class Vector2:
         self._y = _y
 
     def set_angle(self, angle: int):
-        znak_x = sign(self.x)
-        znak_y = sign(self.y)
         lenght = self.lenght
         angle = math.radians(angle)
         self._x = math.cos(angle) * lenght
         self._y = math.sin(angle) * lenght
         
-    def scalar(self, vector: 'Vector2'):
+    def scalar_angle(self, vector: 'Vector2') -> float:
         return (self.lenght*vector.lenght)*cos(math.radians(self.get_angle()-vector.get_angle()+90))
+
+    def scalar_lenght(self, vector: 'Vector2') -> float:
+        return (vector.x*self.x)+(vector.y*self.y)
 
     def get_angle(self) -> float:
         return angle_to_float([0, 0], [self._x, self._y])
@@ -737,285 +748,89 @@ class Text:
 # base text class -------------------------------
 
 
-# ! image methods -------------------------------
-
-def load_image(file_name_: str) -> pygame.Surface:
-    return pygame.image.load(file_name_).convert_alpha()
-
-
-top_left_ = NewType("top_left", "Sprite")
-top_middle_ = NewType("top_middle", "Sprite")
-top_right_ = NewType("top_right", "Sprite")
-center_left_ = NewType("center_left", "Sprite")
-center_middle_ = NewType("center_middle", "Sprite")
-center_right_ = NewType("center_right", "Sprite")
-down_left_ = NewType("down_left", "Sprite")
-down_middle_ = NewType("down_middle", "Sprite")
-down_right_ = NewType("down_right", "Sprite")
-
-top_vertical_ = NewType("top_vertical", "Sprite")
-center_vertical_ = NewType("center_vertical", "Sprite")
-down_vertical_ = NewType("down_vertical", "Sprite")
-
-left_horizontal_ = NewType("left_horizontal", "Sprite")
-center_horizontal_ = NewType("center_horizontal", "Sprite")
-right_horizontal_ = NewType("right_horizontal", "Sprite")
-
-left_down_yes_ = NewType("left_down", "Sprite")
-right_down_yes_ = NewType("right_down", "Sprite")
-left_right_down_yes_ = NewType("left_right_down", "Sprite")
-
-left_top_yes_ = NewType("left_up", "Sprite")
-right_top_yes_ = NewType("right_up", "Sprite")
-left_right_top_yes_ = NewType("left_right_up", "Sprite")
-
-left_right_top_down_yes_ = NewType("left_right_up_down", "Sprite")
-
-
-one_ = NewType("one", "Sprite")
-
-
-# TODO New <> !!!!!!!!!
-def load_block_cheat(
-    file_name_: str, block_cheat_size_: int = 4, block_size_: Tuple[int, int] = [8, 8]
-) -> Tuple[
-    top_left_,
-    top_middle_,
-    top_right_,
-    center_left_,
-    center_middle_,
-    center_right_,
-    down_left_,
-    down_middle_,
-    down_right_,
-    one_,
-    top_vertical_,
-    center_vertical_,
-    down_vertical_,
-    left_horizontal_,
-    center_horizontal_,
-    right_horizontal_,
-    left_down_yes_,
-    right_down_yes_,
-    left_right_down_yes_,
-    left_top_yes_,
-    right_top_yes_,
-    left_right_top_yes_,
-    left_right_top_down_yes_,
-]:
-    sprite_image_ = load_image(file_name_)
-    midle_image_ = sprite_image_.subsurface(
-        [0, 0, block_size_[0] * 3, block_size_[1] * 3]
-    )
-
-    vertical_image_ = sprite_image_.subsurface(
-        [block_size_[0] * 3, 0, block_size_[0], block_size_[1] * 3]
-    )
-    horizontal_image_ = sprite_image_.subsurface(
-        [0, block_size_[1] * 3, block_size_[0] * 3, block_size_[1]]
-    )
-    one_image_ = sprite_image_.subsurface(
-        [block_size_[0] * 3, block_size_[1] * 3, block_size_[0], block_size_[1]]
-    )
-
-    left_down_image = sprite_image_.subsurface(
-        [block_size_[0] * 4, 0, block_size_[0], block_size_[1]]
-    )
-    right_down_image = sprite_image_.subsurface(
-        [block_size_[0] * 4, block_size_[1], block_size_[0], block_size_[1]]
-    )
-
-    left_up_image = sprite_image_.subsurface(
-        [block_size_[0] * 4, block_size_[1] * 3, block_size_[0], block_size_[1]]
-    )
-    right_up_image = sprite_image_.subsurface(
-        [block_size_[0] * 4, block_size_[1] * 2, block_size_[0], block_size_[1]]
-    )
-
-    left_right_up_image = sprite_image_.subsurface(
-        [block_size_[0] * 5, 0, block_size_[0], block_size_[1]]
-    )
-    left_right_down_image = sprite_image_.subsurface(
-        [block_size_[0] * 5, block_size_[1], block_size_[0], block_size_[1]]
-    )
-    left_right_down_up_image = sprite_image_.subsurface(
-        [block_size_[0] * 5, block_size_[1] * 2, block_size_[0], block_size_[1]]
-    )
-
-    sprites = {}
-    sp_ = []
-    for i in range(3):
-        for j in range(3):
-            sp_.append(
-                midle_image_.subsurface(
-                    [
-                        j * block_size_[0],
-                        i * block_size_[1],
-                        block_size_[0],
-                        block_size_[1],
-                    ]
-                )
-            )
-
-    sp_vertical_ = []
-    for i in range(3):
-        sp_vertical_.append(
-            vertical_image_.subsurface(
-                [0, i * block_size_[1], block_size_[0], block_size_[1]]
-            )
-        )
-
-    sp_horizontal_ = []
-    for i in range(3):
-        sp_horizontal_.append(
-            horizontal_image_.subsurface(
-                [i * block_size_[0], 0, block_size_[0], block_size_[1]]
-            )
-        )
-
-    sprites["top_left"] = Sprite(sp_[0])
-    sprites["top_middle"] = Sprite(sp_[1])
-    sprites["top_right"] = Sprite(sp_[2])
-    sprites["center_left"] = Sprite(sp_[3])
-    sprites["center_middle"] = Sprite(sp_[4])
-    sprites["center_right"] = Sprite(sp_[5])
-    sprites["down_left"] = Sprite(sp_[6])
-    sprites["down_middle"] = Sprite(sp_[7])
-    sprites["down_right"] = Sprite(sp_[8])
-
-    sprites["top_vertical"] = Sprite(sp_vertical_[0])
-    sprites["center_vertical"] = Sprite(sp_vertical_[1])
-    sprites["down_vertical"] = Sprite(sp_vertical_[2])
-
-    sprites["left_horizontal"] = Sprite(sp_horizontal_[0])
-    sprites["center_horizontal"] = Sprite(sp_horizontal_[1])
-    sprites["right_horizontal"] = Sprite(sp_horizontal_[2])
-
-    sprites["one"] = Sprite(one_image_)
-
-    sprites["left_down"] = Sprite(left_down_image)
-    sprites["right_down"] = Sprite(right_down_image)
-
-    sprites["left_up"] = Sprite(left_up_image)
-    sprites["right_up"] = Sprite(right_up_image)
-
-    sprites["left_right_up"] = Sprite(left_right_up_image)
-    sprites["left_right_down"] = Sprite(left_right_down_image)
-    sprites["left_right_up_down"] = Sprite(left_right_down_up_image)
-
-    return sprites
+__image_color_key__ = (0,0,0)
+def load_pg_image(file_name_: str) -> pygame.Surface:
+    surf = pygame.image.load(file_name_).convert()
+    surf.set_colorkey(__image_color_key__)
+    return surf
 
 class Sprite:
-    # ? Sprite base methods
-
-    def set_size(
-        self,
-        image_: pygame.Surface = None,
-        scale_: float = 1,
-        any_size_: Tuple[int, int] = None,
-    ):
-        if image_ is not None:
-            if any_size_ is not None:
-                _return_surf = pygame.transform.scale(image_, any_size_)
-            else:
-                _return_surf = pygame.transform.scale(
-                    image_, [image_.get_width() * scale_, image_.get_height() * scale_]
-                )
-            return _return_surf
-        else:
-            if any_size_ is not None:
-                _return_surf = pygame.transform.scale(self.image, any_size_)
-            else:
-                _return_surf = pygame.transform.scale(
-                    self.image,
-                    [self.image.get_width() * scale_, self.image.get_height() * scale_],
-                )
-            self.valid_image = copy(_return_surf)
-
-    def set_angle(self, image_: pygame.Surface = None, angle_: float = 0):
-        if image_ is not None:
-            _return_surf = pygame.transform.rotate(image_, angle_)
-            return _return_surf
-        else:
-            self.angle = angle_
-
-    def set_mirror(self, x_=False, y_=False):
-        self.valid_image = pygame.transform.flip(self.image, x_, y_)
-
-    # ? Sprite base methods
-
-    def __init__(self, start_sprite_: pygame.Surface) -> "Sprite":
-        self.image = start_sprite_
-        self.valid_image = copy(self.image)
-        self.render_image = copy(self.image)
-        self.pos = [0, 0]
-        self.size = [0, 0]
-        self.angle = 0
-
-        self.__update_size__()
-
-    def __update_size__(self):
-        self.size = [*self.render_image.get_size()]
-
+    def __init__(self, file_name_: str | None = None) -> None:
+        self._file_name = file_name_
+        if file_name_ is not None:
+            self._start_sprite = self._load_sprite(self._file_name)
+        
+        self._angle = 0
+        self._scale = 1
+        self._center_pos = [0, 0]
+    
+    def start_sprite(self, surf_: pygame.Surface):
+        self._start_sprite = surf_
+        return self
+        
+    def _convert_center_pos(self, _pos: Tuple[float, float], _surf: pygame.Surface) -> Tuple[float, float]:
+        _surf_size = _surf.get_size()
+        return [_pos[0]-_surf_size[0]/2, _pos[1]-_surf_size[1]/2]
+        
+    def _load_sprite(self, _file_name: str) -> pygame.Surface:
+        return load_pg_image(_file_name)
+    
+    def _set_transform_propertys(self) -> pygame.Surface:
+        return pygame.transform.rotate(
+            pygame.transform.scale(self._start_sprite, [self._start_sprite.get_width()*self.scale, self._start_sprite.get_height()*self.scale]),
+            self.angle
+        )
     @property
-    def center(self):
-        return self.pos
-
+    def center(self) -> Tuple[float, float]:
+        return self._center_pos
+    
     @center.setter
-    def center(self, center_pos_: Tuple[int, int]):
-        self.pos = center_pos_
-
+    def center(self, center: Tuple[float, float]):
+        self._center_pos = center
+    
     @property
-    def center_x(self):
-        return self.pos[0]
-
-    @center_x.setter
-    def center_x(self, x_: int):
-        self.pos[0] = x_
-
+    def angle(self) -> float:
+        return self._angle
+    
+    @angle.setter
+    def angle(self, angle: float):
+        # Set angle property from Sprite
+        self._angle = angle
+    
     @property
-    def center_y(self):
-        return self.pos[1]
-
-    @center_y.setter
-    def center_y(self, y_: int):
-        self.pos[1] = y_
-
-    def draw(self, win_: Window, centering: bool = True):
-        self.render_image = pygame.transform.rotate(self.valid_image, self.angle)
-        self.__update_size__()
-        if centering:
-            self.render_pos = [
-                self.pos[0] - self.size[0] / 2,
-                self.pos[1] - self.size[1] / 2,
-            ]
-        else:
-            self.render_pos = self.pos
-        win_.surf.blit(self.render_image, self.render_pos)
-
-    def draw_surf(self, surf_: pygame.Surface):
-        self.render_image = pygame.transform.rotate(self.valid_image, self.angle)
-        self.__update_size__()
-        self.render_pos = [
-            self.pos[0] - self.size[0] / 2,
-            self.pos[1] - self.size[1] / 2,
-        ]
-        surf_.blit(self.render_image, self.render_pos)
-
-# ? Succes!
+    def scale(self) -> float:
+        return self._scale
+    
+    @scale.setter
+    def scale(self, scale: float):
+        # Set scale property from Sprite
+        self._scale = scale
+    
+    def transform(self, _angle: None | float = None, _scale: None | float = None) -> None:
+        # Set transform propertis from Sprite
+        self.scale = _scale
+        self.angle = _angle
+        
+    def render(self, _surf: pygame.Surface):
+        _rendered_surf = self._set_transform_propertys()
+        _rendered_pos = self._convert_center_pos(self.center, _rendered_surf)
+        _surf.blit(_rendered_surf, _rendered_pos)
+    
 class AnimatedSprite:
-    # ? -----------------------------------------------------
-    # ? | Colors                                            |
-    # ? | Line color              -> (255,   0, 255)        |
-    # ? | Colom color             -> (255, 255,   0)        |
-    # ? | Size color              -> (  0,   0, 255)        |
-    # ? -----------------------------------------------------
+    '''  
+    # -------------Colors---------------                                            
+    # Line color              -> (255,   0, 255)        
+    # Colom color             -> (255, 255,   0)        
+    # Size color              -> (  0,   0, 255)        
+    '''
+    
     @classmethod
     def load_sprites(self, file_name_: str) -> Tuple[pygame.Surface, ...]:
-        canvas_ = pygame.image.load(file_name_)
+        canvas_ = load_pg_image(file_name_)
 
         width_ = canvas_.get_size()[0]
         height_ = canvas_.get_size()[1]
+
 
         spritets_coloms = []
         sizes_poses = []
@@ -1048,6 +863,7 @@ class AnimatedSprite:
                             break
                     sizes_poses.append([[pos[0], pos[1] + 1], [spw, sph]])
         textures = []
+        
         for sp in sizes_poses:
             canvas_.set_clip(sp[0], sp[1])
             texture = canvas_.get_clip()
@@ -1055,186 +871,85 @@ class AnimatedSprite:
             textures.append(surft)
         return textures
 
-    def __create_sprites__(self, file_name_: str) -> Tuple[Sprite, ...]:
-        _sprites = self.load_sprites(file_name_)
-
-        _new_sprites = [Sprite(_image) for _image in _sprites]
+    def _create_sprites(self, file_name: str) -> Tuple[Sprite, ...]:
+        _sprites = self.load_sprites(file_name)
+        _new_sprites = [Sprite().start_sprite(_image) for _image in _sprites]
         return _new_sprites
 
-    def __init__(self, file_name_: str, speed_: int = 10, stoped: bool = False) -> None:
-        self._sprites = self.__create_sprites__(file_name_)
-        self._time = 0
-        self._run = False
-        self._speed = speed_
-        self._stoped = stoped
-        self._render = True
-        self.pos = [0, 0]
-
-        self.index = 0
-
-    def set_sprite(self, index):
-        self.index = index
-
-    def end_sprite(self):
-        if self.index == len(self._sprites) - 1:
-            return True
-        return False
-
-    def set_size(
-        self,
-        scale_: float = 1,
-        any_size_: Tuple[int, int] = None,
-    ):
-        for sprite in self._sprites:
-            sprite.set_size(scale_=scale_, any_size_=any_size_)
-
-    def set_angle(self, angle_: float = 0):
-        for sprite in self._sprites:
-            sprite.set_angle(angle_=angle_)
-
-    def set_mirror(self, x_=False, y_=False):
-        for sprite in self._sprites:
-            sprite.set_mirror(x_=x_, y_=y_)
-
-    def start(self):
-        self._run = True
-
-    def stop(self):
-        self._run = False
-
-    @property
-    def center(self):
-        return self.pos
-
-    @center.setter
-    def center(self, center_pos_: Tuple[int, int]):
-        self.pos = center_pos_
-        for sprite in self._sprites:
-            sprite.center = center_pos_
-
-    @property
-    def center_x(self):
-        return self._sprites[0].center_x
-
-    @center_x.setter
-    def center_x(self, x_: int):
-        self.pos[0] = x_
-        for sprite in self._sprites:
-            sprite.center_x = x_
-
-    @property
-    def center_y(self):
-        return self._sprites[0].center_y
-
-    @center_y.setter
-    def center_y(self, y_: int):
-        self.pos[1] = y_
-        for sprite in self._sprites:
-            sprite.center_y = y_
-
-    def update(self):
-        if self._run:
-            self._time += 1
-
-            if self._time % self._speed == 0:
-                self.index += 1
-
-            if self.index == len(self._sprites):
-                if self._stoped:
-                    self._render = False
-                else:
-                    self.index = 0
-
-    def render(self, win_: Window):
-        if self._render:
-            self._sprites[self.index].draw(win_)
-
-
-class StackedSprite:
-    def __init__(
-        self, sprite_slices_file_name_: str, size_: Tuple[int, int], scale_: int = 1
-    ) -> None:
-        self.load_slices = pygame.image.load(sprite_slices_file_name_)
-        self._size = size_
-        self.object_pos = []
-        self._pos = []
-        self._scale = scale_
-        self.angle = 0
-
-    def convert(self, angles_count=180, zapl=False):
-        height = self.load_slices.get_height()
-        self.converted_sprites = []
-        self.angle_dur = 360 / angles_count
-
-        for angle in range(angles_count):
-            pre_surfs: list[pygame.Surface] = []
-            for i in range(height // self._size[1]):
-                sp = self.load_slices.subsurface(
-                    [0, 0 + i * self._size[1]], [self._size[0], self._size[1]]
-                )
-                sp = pygame.transform.scale(
-                    sp, [sp.get_width() * self._scale, sp.get_height() * self._scale]
-                )
-                sub_surf = pygame.transform.rotate(
-                    sp,
-                    angle * self.angle_dur,
-                )
-                pre_surfs.append(sub_surf)
-            pre_surfs.reverse()
-            surf_size = [
-                pre_surfs[0].get_width(),
-                pre_surfs[0].get_height() + i * self._scale,
-            ]
-            dummy_surf = pygame.Surface(surf_size).convert()
-            dummy_surf.set_colorkey((0, 0, 0))
-            for i, image in enumerate(pre_surfs):
-                for k in range(int(self._scale)):
-                    dummy_surf.blit(
-                        image,
-                        [
-                            0,
-                            dummy_surf.get_height()
-                            - image.get_height()
-                            - i * self._scale
-                            - k,
-                        ],
-                    )
-            self.converted_sprites.append(dummy_surf)
-
-    def set_pos(self, pos):
-        self._pos = copy(pos)
-
-        self._pos[1] -= self._size[2] * self._scale / 2
-        self.start_pos = copy(self._pos)
-
-    def render(self, surf: pygame.Surface, angle):
-        sprite = self.converted_sprites[int((angle % 360) // self.angle_dur)]
+    def __init__(self, file_name_: str, speed_: int = 10) -> None:
+        self._sprites: Tuple[Sprite, ...] = self._create_sprites(file_name_)
         
-        surf.blit(
-            sprite,
-            [
-                self._pos[0] - sprite.get_width() / 2,
-                self._pos[1] - sprite.get_height() / 2,
-            ],
-        )
-
-        #Draw.draw_circle(surf, self._pos, 2, "blue")
-
-
-def load_tile_sheet(file_name: str, ts_size: Tuple[int,int], tiles_count: int, tile_size: Tuple[int, int] = [10, 10])-> Tuple[Sprite, ...]:
-    img = load_image(file_name)
+        self._time = 0
+        self._speed = speed_
+        self._index = 0
+        
+        self._center_pos = [0, 0]
+        self._scale = 0
+        self._angle = 0
+    
+    def _set_transform_propertys(self):
+        for sprite in self._sprites:
+            sprite.transform(self.angle, self.scale)
+            sprite.center = self._center_pos
+        
+    @property
+    def angle(self) -> float:
+        return self._angle
+    
+    @angle.setter
+    def angle(self, angle):
+        self._angle = angle
+        self._set_transform_propertys()
+        
+    @property
+    def center(self) -> Tuple[float, float]:
+        return self._center_pos
+    
+    @center.setter
+    def center(self, center) -> Tuple[float, float]:
+        self._center_pos = center
+        self._set_transform_propertys()
+        
+    @property
+    def scale(self) -> float:
+        return self._scale
+    
+    @scale.setter
+    def scale(self, scale):
+        self._scale = scale
+        self._set_transform_propertys()
+        
+    def transform(self, _angle: None | float = None, _scale: None | float = None) -> None:
+        # Set transform propertis from Sprite
+        self.scale = _scale
+        self.angle = _angle
+        self._set_transform_propertys()
+        
+    def update(self):
+        self._time += 1
+        if self._time>=self._speed:
+            self._index += 1
+            self._time = 0
+        if self._index >= len(self._sprites):
+            self._index = 0 
+        
+    def render(self, surf_: pygame.Surface):
+        self._sprites[self._index].render(surf_)
+        
+def load_sprites_sheet(file_name_: str, ts_size_: Tuple[int,int], tiles_count_: int, tile_size_: Tuple[int, int] = [10, 10])-> Tuple[Sprite, ...]:
+    img = load_pg_image(file_name_)
     sp_ind = 0
     sprites = []
-    for j in range(ts_size[1]):
-        for i in range(ts_size[0]):
-            sprites.append(  Sprite(img.subsurface([i*tile_size[0],j*tile_size[1]], tile_size).convert() ))
+    for j in range(ts_size_[1]):
+        for i in range(ts_size_[0]):
+            sprites.append(  Sprite(img.subsurface([i*tile_size_[0],j*tile_size_[1]], tile_size_).convert() ))
             sp_ind+=1
-            if sp_ind == tiles_count:
+            if sp_ind == tiles_count_:
                 return sprites
             
-# ! image methods -------------------------------
 
-# base math class -------------------------------
+
+
 
 def two_element_typing_xy(iterable_: list | tuple | Vector2):
     if isinstance(iterable_, (list, tuple)):
@@ -1282,6 +997,8 @@ def center_pos(
 
 def vector_lenght(lenght_x: int, lenght_y: int):
     _distance = math.sqrt(lenght_x**2 + lenght_y**2)
+    if distance==0:
+        return 1
     return _distance
 
 def rect_center(rect_pos: typing.Tuple[int, int], rect_size: typing.Tuple[int, int]):
@@ -1584,7 +1301,6 @@ class Draw:
         
         Draw.draw_aline(surf, [center[0]-normal_vector.x,center[1]-normal_vector.y], [center[0]+normal_vector.x,center[1]+normal_vector.y], color, width)
         
-
     @staticmethod
     def draw_circle(
 
@@ -1644,6 +1360,29 @@ class Draw:
             pos2 = point_2
         pygame.draw.line(surface, color, pos1, pos2, width)
 
+    @staticmethod
+    def draw_vector_line(
+        surface: pygame.Surface,
+        pos: list | tuple | Vector2,
+        vector: Vector2,
+        color: list | str | Color = 'gray',
+        width: int = 1
+    ):
+        start_pos = pos
+        end_pos = posing(start_pos, vector.x, vector.y)
+        
+        left_vector = copy(vector)
+        right_vector = copy(vector)
+        left_vector.normalyze()
+        right_vector.normalyze()
+        left_vector*=(18+width)
+        right_vector*=(18+width)
+        left_vector.rotate(150)
+        right_vector.rotate(-150)
+        Draw.draw_aline(surface, start_pos, end_pos, color, width)
+        Draw.draw_aline(surface, end_pos, [end_pos[0]+right_vector.x, end_pos[1]+right_vector.y], color, width)
+        Draw.draw_aline(surface, end_pos, [end_pos[0]+left_vector.x, end_pos[1]+left_vector.y], color, width)
+        
     @staticmethod
     def draw_aline(
 
@@ -2038,6 +1777,7 @@ class Draw:
             shapes_kvargs[i]['pos'][1]+=pos[1]
             Draw.__dict__[shapes_functions[i]].__call__(surface=surface, **shapes_kvargs[i])
 
+    
 # base draw class -------------------------------
 
 # base input class ------------------------------
