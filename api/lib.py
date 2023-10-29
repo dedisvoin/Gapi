@@ -45,7 +45,7 @@ from copy import copy,deepcopy
 
 
 # init ------------------------------------------
-__version__ = '1.2'
+__version__ = '1.22'
 print(Fore.GREEN+'G-api ' +Fore.BLACK+ '[ '+Fore.MAGENTA+f'version: {__version__}'+Fore.BLACK+' ]'+Fore.RESET)
 # init ------------------------------------------
 

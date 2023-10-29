@@ -1,5 +1,4 @@
 from typing import Dict, Tuple
-from copy import deepcopy
 import pygame
 
 try:
@@ -19,16 +18,22 @@ class particle_spawner_types:
     LINE = 'LINE_SPAWNER'
     POLYGONE = "POLYGONE_SPAWNER"
     
+class sprite_angle_types:
+    TO_VECTOR = 'TO_VECTOR'
+    TO_ROTATE = 'TO_ROTATE'
+    
 class light_modes:
     ADD = pygame.BLEND_ADD
     RGB_MIN = pygame.BLEND_RGB_MIN
     RGB_MAX = pygame.BLEND_RGB_MAX
 
+
 class _particle:
     def __init__(self) -> None:
         
         # All particle propertis -----------------------------------------
-        self.RESIZE_START_TIME = 0
+        
+        self.RESIZE_START_TIME: int = 0
         self.SHAPE: particle_shapes = particle_shapes.CIRCLE
         self.COLOR_FROM_DICT: Tuple[list | str, ...] = []
         self.COLOR_RANDOM: bool = False
@@ -38,6 +43,20 @@ class _particle:
         self.SHAPE_RENDERER: bool = True
         
         # All particle propertis -----------------------------------------
+        
+        # Images ---------------------------------------------------------
+        
+        self.SPRITE: Sprite = None
+        self.SPRITE_LIST: Tuple[Sprite, ...] = []
+        self.SPRITE_START_SCALE: float = 1
+        self.SPRITE_SCALE_RESIZE: float = -0.01
+        self.SPRITE_ANGLE_TYPE: sprite_angle_types = sprite_angle_types.TO_ROTATE
+        self.SPRITE_ROTATE_ANGLE: float = 0.1
+        self.SPRITE_START_ANGLE: float = 0
+        self.SPRITE_ADD_ANGLE: float = 0
+        self.SPRITE_SCALE_RANDOMER: int = 0
+
+        # Images ---------------------------------------------------------
         
         # Lines ----------------------------------------------------------
         
@@ -128,7 +147,8 @@ class Particle(_particle):
         ...
     
 class ParticleSpawner:
-    def __init__(self, type_: particle_spawner_types = particle_spawner_types.RECT, 
+    def __init__(self, 
+                type_: particle_spawner_types = particle_spawner_types.RECT, 
                 pos_: tuple[int,int] = [0,0], size_: Tuple[int,int] = [0,0],
                 radius_: int = 0,
                 pos1_: Tuple[int,int] = [0,0], pos2_: Tuple[int,int] = [0,0], 
@@ -155,7 +175,10 @@ class ParticleSpace:
         self._space: Tuple[Particle, ...] = []
         
     def __construct_particle__(self, particle_: Particle, spavner_: ParticleSpawner):
-        p_dict = deepcopy(particle_.__dict__)
+        p_dict = {}
+        for i in particle_.__dict__:
+            p_dict[i] = copy(particle_.__dict__[i])
+        
         
         # create position ---------------------------------------------
         
@@ -183,8 +206,7 @@ class ParticleSpace:
                 dist = random.randint(0, lenght)
                 vector*=dist
                 pos = [points[r_points][0]+vector.x, points[r_points][1]+vector.y]
-                p_dict['POS'] = pos
-        
+                p_dict['POS'] = pos 
         if spavner_._type == particle_spawner_types.CIRCLE:
             random_vector = Vector2(0,random.randint(0,spavner_._radius))
             random_vector.set_angle(random.randint(0,360))
@@ -192,6 +214,15 @@ class ParticleSpace:
             p_dict['POS'][1] = spavner_._pos[1]+random_vector.y
         
         # create position ---------------------------------------------
+        
+        # create sprite -----------------------------------------------
+        
+        p_dict['SPRITE_START_ANGLE'] = random.randint(0,360)
+        p_dict['SPRITE_START_SCALE'] += random.randint(0, p_dict['SPRITE_SCALE_RANDOMER']*1000)/1000
+        if len(p_dict['SPRITE_LIST'])!=0:
+            p_dict['SPRITE'] = random.choice(p_dict['SPRITE_LIST'])
+            
+        # create sprite -----------------------------------------------   
         
         # create radius -----------------------------------------------
         
@@ -201,13 +232,13 @@ class ParticleSpace:
         # create radius -----------------------------------------------
         
         # create speed ------------------------------------------------
+        
         p_dict['SPEED']+=Vector2([0,random.randint(0, p_dict['SPEED_RANDOMER']*1000)/1000])
         p_dict['SPEED'].set_angle(p_dict['SPEED_ANGLE']+random.randint(-p_dict['SPEED_DURATION'],p_dict['SPEED_DURATION']))
         if p_dict['SPEED_ROTATION']:
             if p_dict['SPEED_RANDOM_ROTATION_ANGLE'] != False:
                 p_dict['SPEED_ROTATION_ANGLE'] = random.randint(p_dict['SPEED_RANDOM_ROTATION_ANGLE'][0],p_dict['SPEED_RANDOM_ROTATION_ANGLE'][1])
             
-        
         # create speed ------------------------------------------------
         
         # create size -------------------------------------------------
@@ -270,19 +301,22 @@ class ParticleSpace:
                     Draw.draw_circle(self._win.surf, [particle.POS[0]+particle.SHADOW_DX,particle.POS[1]+particle.SHADOW_DY], particle.RADIUS, particle.SHADOW_COLOR)
                 if particle.SHAPE == particle_shapes.RECT:
                     Draw.draw_rect(self._win.surf, center_rect([particle.POS[0]+particle.SHADOW_DX,particle.POS[1]+particle.SHADOW_DY], particle.SIZE,True), particle.SIZE, particle.SHADOW_COLOR)
-            
             #? RENDER SHADOW -----------------------------------------------------------------------------------------------------------------
         
         for i, particle in enumerate( self._space ):
-            
-            
             
             #? RENDER SHAPES -----------------------------------------------------------------------------------------------------------------
             if particle.SHAPE_RENDERER:
                 if particle.SHAPE == particle_shapes.CIRCLE:
                     Draw.draw_circle(self._win.surf, particle.POS, particle.RADIUS, particle.COLOR)
-                if particle.SHAPE == particle_shapes.RECT:
+                elif particle.SHAPE == particle_shapes.RECT:
                     Draw.draw_rect(self._win.surf, center_rect(particle.POS, particle.SIZE,True), particle.SIZE, particle.COLOR)
+                elif particle.SHAPE == particle_shapes.IMAGE:
+                    particle.SPRITE.center = particle.POS
+                    particle.SPRITE.angle = particle.SPRITE_START_ANGLE
+                    particle.SPRITE.scale = particle.SPRITE_START_SCALE
+                    particle.SPRITE.render(self._win.surf)
+                    
             #? RENDER SHAPES -----------------------------------------------------------------------------------------------------------------
             
             
@@ -372,6 +406,15 @@ class ParticleSpace:
             particle.POS[1]+=particle.SPEED.y
             # speed using -------------------------------------------------
             
+            # sprite methods ----------------------------------------------
+            if particle.SPRITE_ANGLE_TYPE == sprite_angle_types.TO_ROTATE:
+                particle.SPRITE_START_ANGLE += particle.SPRITE_ROTATE_ANGLE
+            elif particle.SPRITE_ANGLE_TYPE == sprite_angle_types.TO_VECTOR:
+                particle.SPRITE_START_ANGLE = particle.SPEED.get_angle() + particle.SPRITE_ADD_ANGLE
+                
+            
+            # sprite methods ----------------------------------------------
+            
             # timer methods -----------------------------------------------
             particle.TIMER+=1*self._win.delta
             if particle.TIMER>particle.RESIZE_START_TIME:
@@ -380,25 +423,20 @@ class ParticleSpace:
                 if particle.SHAPE == particle_shapes.RECT:
                     particle.SIZE[0]+=particle.SIZE_RESIZE[0]*self._win.delta
                     particle.SIZE[1]+=particle.SIZE_RESIZE[1]*self._win.delta
+                if particle.SHAPE == particle_shapes.IMAGE:
+                    particle.SPRITE_START_SCALE += particle.SPRITE_SCALE_RESIZE*self._win.delta
             
             
             # timer methods -----------------------------------------------
 
         start_space = set(self._space)
-        self._space = list(filter(lambda elem: elem.RADIUS>0,self._space))
+        self._space = list(filter(lambda elem: elem.RADIUS>0, self._space))
+        self._space = list(filter(lambda elem: elem.SPRITE_START_SCALE>0, self._space))
         end_space = set(self._space)
         del_space = start_space - end_space
         if len(del_space)>0:
             del_event_(list(del_space), self)
         
-        
-        #self._space = list(filter(lambda elem: elem.SIZE[0]>0 and elem.SIZE[1]>0, self._space))
-
-        #for i in range(len(self._space)):
-        #    if self._space[i].RADIUS<=0:
-        #        del self._space[i]
-        #        break
-                
 class ParticleTurbulesity:
     class MagnetCircle:
         def __init__(self, pos_: Tuple[int, int], radius_: float, strange_: float = 1) -> None:
@@ -440,52 +478,62 @@ class ParticleTurbulesity:
                 if turbulensity.type == 'MAGNETRECT':
                     if in_rect(turbulensity.pos, turbulensity.size, particle.POS):
                         particle.SPEED+=turbulensity.strange_vector
-        
-            
-            
 
 
 if __name__ == '__main__':
+    
+    win = Window()
+    
     p = Particle()
-
-    p.set('shape',particle_shapes.CIRCLE)
+    p.set('shape',particle_shapes.IMAGE)
     p.set('color',(255,130,200))
-    p.set('speed',Vector2(0,0.5))
+    p.set('speed',Vector2(0,0))
     p.set('size_randomer',[0,0])
     p.set('speed_angle',-90)
-    p.set('speed_duration',0)
-    p.set('speed_friction',0.999)
-    p.SPEED_RANDOMER = 1
+    p.set('speed_duration',180)
+    
+    p.SPEED_FRICTION = 0.99
+    p.SPEED_RANDOMER = 2
+    p.RESIZE_START_TIME = 100
+    p.SPRITE_SCALE_RANDOMER = 2
+    p.SPRITE_LIST = [ Sprite('api\ppp.png') ]
+    p.SPRITE_START_SCALE = 1
+    p.SPRITE_SCALE_RESIZE = -0.1
+    p.SPRITE_ROTATE_ANGLE = 0.1
+    p.SPRITE_ANGLE_TYPE = sprite_angle_types.TO_ROTATE
+    p.SPRITE_ADD_ANGLE = -45
+    
 
-
-    win = Window()
+    
 
     space = ParticleSpace([0,0],[800,650],win)
-
     spawn = ParticleSpawner(type_=particle_spawner_types.CIRCLE,  pos_=[300,300],radius_=50)
 
-
     ts = ParticleTurbulesity()
-    mag = ParticleTurbulesity.MagnetCircle([160,100],150,-0.05)
+    mag = ParticleTurbulesity.MagnetCircle([160,100],150,0.05)
     mag2 = ParticleTurbulesity.MagnetRect([300,100],[200,100],Vector2(0.01,0))
     ts.add(mag)
     ts.add(mag2)
 
-
+    events = MouseEventHandler()
+    events.AddEvent(Mouse(Mouse.left, Mouse.click_event,'cl'))
+    
     while win(fps='max',base_color=(255,255,255)):
         ts.simulate(space)
-        space.tick()
         mag.draw(win)
         mag2.draw(win)
+        
+        space.tick()
+        
         spawn._pos = Mouse.position()
+        events.EventsUpdate()
         
+        if events.GetEventById('cl'):
+            space.add(p, spawn,10,1)
         
+
         space.render()
-        space.add(p, spawn,1,10)
-        
-
-
-        space.update(lambda a,b:None)
+        space.update(lambda a, b:None)
     
     
 
