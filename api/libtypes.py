@@ -632,10 +632,30 @@ class Color:
     def rgba(self, r, g, b) -> "Color":
         return Color([r,g,b])
 
+    def mutate(self, mutate_color_: "Color", mutate_speed = 0.1):
+        dr = (self.r - mutate_color_.r) * mutate_speed
+        dg = (self.g - mutate_color_.g) * mutate_speed
+        db = (self.b - mutate_color_.b) * mutate_speed
+        self.r-=dr
+        self.g-=dg
+        self.b-=db
+        
+    def returned(self, return_speed = 0.1):
+        dr = (self.r - self._s_r) * return_speed
+        dg = (self.g - self._s_g) * return_speed
+        db = (self.b - self._s_b) * return_speed
+        self.r-=dr
+        self.g-=dg
+        self.b-=db
+
     def __init__(self, color: list | tuple) -> "Color":
         self._r = color[0]
         self._g = color[1]
         self._b = color[2]
+        
+        self._s_r = color[0]
+        self._s_g = color[1]
+        self._s_b = color[2]
 
     @classmethod
     def random(self) -> "Color":

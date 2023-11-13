@@ -1,0 +1,8 @@
+<[ tilesheats ]
+
+dirt = 'mapcreatordata\tilesheat.png' 8 18
+ice = 'mapcreatordata\tilesheat2.png' 8 18
+graz = 'mapcreatordata\tilesheat3.png' 8 18
+stone = 'mapcreatordata\tilesheat4.png' 8 18
+
+>[ tilesheats ]

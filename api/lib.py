@@ -3,6 +3,7 @@
 import pygame_shaders
 import subprocess
 import threading
+import pyperclip
 import keyboard
 import asyncio
 import pygame
@@ -25,7 +26,7 @@ from colorama import Fore, Style
 from io import TextIOWrapper
 from ast import literal_eval
 from threading import Thread
-from typing import Callable, overload
+from typing import Callable, TypedDict, overload
 from typing import Iterable
 try:
     from libtypes import Color
@@ -43,6 +44,7 @@ from time import sleep
 from typing import Any
 from copy import copy,deepcopy
 
+# imports ---------------------------------------
 
 # init ------------------------------------------
 __version__ = '1.22'
@@ -50,8 +52,12 @@ print(Fore.GREEN+'G-api ' +Fore.BLACK+ '[ '+Fore.MAGENTA+f'version: {__version__
 # init ------------------------------------------
 
 
-# imports ---------------------------------------
+# copying ---------------------------------------
 
+def paste() -> str:
+    return pyperclip.paste()
+
+# copying ---------------------------------------
 
 # asyncio ---------------------------------------
 
@@ -135,7 +141,7 @@ class Vector2:
     def lenght(self):
         l = vector_lenght(self._x, self._y)
         if l == 0:
-            return 1
+            return 0.0000001
         return l
 
     @lenght.setter
@@ -185,6 +191,31 @@ class Vector2:
     @y.setter
     def y(self, value: float) -> None:
         self._y = value
+        
+    @property
+    def sw(self) -> float:
+        return self._x
+    
+    @property
+    def sh(self) -> float:
+        return self._y
+
+    @sw.setter
+    def sw(self, value: float) -> None:
+        self._x = value
+
+    @sh.setter
+    def sh(self, value: float) -> None:
+        self._y = value
+        
+    @property
+    def swh(self) -> typing.Tuple[int, int]:
+        return [self._x, self._y]
+
+    @swh.setter
+    def swh(self, pos_: typing.Tuple[int, int]):
+        self._x = pos_[0]
+        self._y = pos_[1]
 
     @property
     def xy(self) -> typing.Tuple[int, int]:
@@ -289,9 +320,10 @@ def NewProcess(name: str = None):
 def TimeProcess(func: typing.Callable):
     def wrapper(*args, **kvargs):
         start = time.time()
-        func(*args, **kvargs)
+        ret = func(*args, **kvargs)
         end = time.time()
         print(f"Time ({func.__name__}): {end - start}")
+        return ret
 
     return wrapper
 
@@ -302,6 +334,72 @@ def get_threads():
     return threading.enumerate()
 
 # base decorators -------------------------------
+
+# gradient --------------------------------------
+
+class PrettyGradient:
+    class TwoColors:
+        def __init__(self, color_1: Color, color_2: Color, steps: int = 255, rgb_deltas = [1,1,1]) -> None:
+            self._color_1 = color_1
+            self._color_2 = color_2
+            self._steps = steps
+            self._rgb_deltas = rgb_deltas
+            
+            self.gradient_surf = pygame.Surface([self._steps,10])
+        
+        
+        def generate(self):
+            dr = self._color_2.r - self._color_1.r
+            dg = self._color_2.g - self._color_1.g
+            db = self._color_2.b - self._color_1.b
+            
+            delta_r = dr/self._steps
+            delta_g = dg/self._steps
+            delta_b = db/self._steps
+            
+            for i in range(self._steps):
+                color = [
+                    self._color_1.r+dr*sin(i/self._steps*self._rgb_deltas[0]),
+                    self._color_1.g+dg*sin(i/self._steps*self._rgb_deltas[1]),
+                    self._color_1.b+db*sin(i/self._steps*self._rgb_deltas[2]),
+                ]
+                Draw.draw_rect(self.gradient_surf, [i, 0], [2,10], color)
+        
+        def get_percent(self, percent: float):
+            color = self.gradient_surf.get_at([int(self._steps*percent), 1])
+            return [color.r, color.g, color.b]
+    
+    class ManyColors:
+        def __init__(self, colors: Tuple[Color, ...], colors_steps: Tuple[int, ...], colors_rgb_deltas) -> None:
+            self._colors = colors
+            self._colors_steps = colors_steps
+            self._colors_rgb_deltas = colors_rgb_deltas
+            self._pos_x = 0
+            
+        def generate_gradient_surfs(self):
+            self.all_step = 0
+            for step in self._colors_steps:
+                self.all_step+=step
+                
+            self.gradient_surf = pygame.Surface([self.all_step, 10])
+            
+            
+        def generate(self):
+            for i in range(len(self._colors)):
+                color1 = self._colors[i-1]
+                color2 = self._colors[i]
+                step = self._colors_steps[i]
+                delta = self._colors_rgb_deltas[i]
+                cg = PrettyGradient.TwoColors(color1, color2, step, delta)
+                cg.generate()
+                self.gradient_surf.blit(cg.gradient_surf, [self._pos_x, 0])
+                self._pos_x+=step
+        
+        def get_percent(self, percent: float):
+            color = self.gradient_surf.get_at([int(self.all_step*percent), 1])
+            return [color.r, color.g, color.b]
+
+# gradient --------------------------------------
 
 # sound class -----------------------------------
 
@@ -366,6 +464,9 @@ class Window:
 
     # def __call__(self) -> pygame.Surface:
     #    return self._win
+    
+    def get_size(self):
+        return [*pygame.display.get_window_size()]
 
     @property
     def surf(self):
@@ -396,8 +497,12 @@ class Window:
         return self._delta
 
     @property
-    def get_size(self) -> typing.Tuple[int, int]:
+    def gsize(self) -> typing.Tuple[int, int]:
         return self._win.get_size()
+    
+    @gsize.setter
+    def gsize(self, size: Tuple[int, int]):
+        pygame.display.set_mode(size=size)
 
     @property
     def center(self) -> typing.Tuple[int, int]:
@@ -444,7 +549,7 @@ class Window:
 
     def fps_view(self):
         self._win.blit(
-            self._fps_surf.render(f"FPS: {int( self.fps )}",(100,100,200))(), (10, 10)
+            self._fps_surf.render(f"FPS: {int( self.fps )}",(100,100,200)), (10, 10)
         )
 
     def update(
@@ -506,7 +611,11 @@ class Rect(Vector2):
     def __init__(self, *args):
         self.__args_wrapper(*args)
         self.colliding = True
-        self.id = random.randint(0, 99999999999999)
+        self.ids = random.randint(0, 99999999999999)
+        self.end_size = [0,0]
+
+    def UDT(self):
+        self.end_size = copy(self.wh)
 
     def __args_wrapper(self, *args):
         if len(args) == 4:
@@ -522,7 +631,8 @@ class Rect(Vector2):
         super().__init__(_x, _y)
 
     def draw(self, win: Window):
-        Draw.draw_rect(win, self.xy, self.wh, "red", 1)
+
+        Draw.draw_rect(win, [self.x, self.y], self.wh, "red", 1)
 
     def collide_point(self, point: Tuple[float, float] | Vector2) -> bool:
         px, py = 0, 0
@@ -572,6 +682,7 @@ class Rect(Vector2):
 
     @wh.setter
     def wh(self, size_: Tuple[float, float]):
+        self.end_size = [self._w, self._h]
         self._w = int(size_[0])
         self._h = int(size_[1])
 
@@ -581,6 +692,7 @@ class Rect(Vector2):
 
     @w.setter
     def w(self, w: float):
+        self.end_size = [self._w, self._h]
         self._w = w
 
     @property
@@ -589,6 +701,7 @@ class Rect(Vector2):
 
     @h.setter
     def h(self, h: float):
+        self.end_size = [self._w, self._h]
         self._h = h
 
     @property
@@ -648,6 +761,75 @@ class Rect(Vector2):
         self._x = pos[0] - self._w / 2
         self._y = pos[1] - self._h / 2
 
+class Circle(Vector2):
+    def __init__(self, pos: Tuple[float, float], radius: float):
+        self.x = pos[0]
+        self.y = pos[1]
+        self._radius = radius
+        
+    def draw(self, win: Window):
+        Draw.draw_circle(win, self.xy, self.r, "red", 1)
+        
+    def collide_point(self, point: Tuple[float, float] | Vector2) -> bool:
+        px, py = 0, 0
+        if isinstance(point, Vector2):
+            px = point.x
+            py = point.y
+        if isinstance(point, (list, tuple)):
+            px = point[0]
+            py = point[1]
+            
+        if distance([px, py],self.xy) < self.r:
+            return True
+        
+        return False
+    
+    def collide_circle(self, circle: 'Circle') -> bool:
+        if distance(self.xy, circle.xy) < self.r + circle.r:
+            return True
+        else:
+            return False
+    
+    @property
+    def r(self) -> float:
+        return self._radius
+    
+    @r.setter
+    def r(self, r):
+        self._radius = r
+    
+    @property
+    def y_up(self) -> float:
+        return self._y - self.r
+
+    @y_up.setter
+    def y_up(self, y: float):
+        self._y = y + self.r
+
+    @property
+    def y_down(self) -> float:
+        return self._y + self.r
+
+    @y_down.setter
+    def y_down(self, y: float):
+        self._y = y - self.r
+
+    @property
+    def x_right(self) -> float:
+        return self._x + self.r
+
+    @x_right.setter
+    def x_right(self, x: float):
+        self._x = x - self.r
+
+    @property
+    def x_left(self) -> float:
+        return self._x - self.r
+
+    @x_left.setter
+    def x_left(self, x: float):
+        self._x = x + self.r
+    
 # collide ---------------------------------------
 
 # flags -----------------------------------------
@@ -667,37 +849,6 @@ class Flags:
     cursor_broken = pygame.cursors.broken_x
 
 # flags -----------------------------------------
-
-# base surface class ----------------------------
-
-class Surface:
-    def __init__(self, size: typing.Tuple[int, int] = [1, 1]) -> None:
-        self.__size = size
-        self._surface = pygame.Surface(self.__size)
-
-    def __call__(self) -> pygame.Surface:
-        return self._surface
-
-    def __set_surface__(self, surface_: pygame.Surface) -> "Surface":
-        self._surface = surface_
-        return self
-
-    @property
-    def size(self) -> typing.Tuple[int, int]:
-        return self._surface.get_size()
-
-    def copy(self) -> "Surface":
-        dummy_ = self._surface.copy()
-        dummy_surface_ = Surface().__set_surface__(dummy_)
-        del dummy_
-        return dummy_surface_
-
-    def pre_surf(self, pos, size) -> "Surface":
-        dummy_ = self._surface.subsurface(pos, size)
-        dummy_surf_ = Surface().__set_surface__(dummy_)
-        return dummy_surf_
-
-# base surface class ----------------------------
 
 # base text class -------------------------------
 
@@ -740,13 +891,18 @@ class Text:
         surface.blit(self.__font_surf, pos)
         return self.__font_surf.get_size()
 
-    def render(self, text: str, color: list | str = "white") -> Surface:
+    def render(self, text: str, color: list | str = "white", max_size=None) -> pygame.Surface:
         self.__text = text
         self.__font_surf = self.__font_object.render(self.__text, True, color)
-        return Surface().__set_surface__(self.__font_surf)
+        try:
+            if max_size:
+                self.__font_surf = self.__font_surf.subsurface([0,0,max_size,self.__font_surf.get_height()])
+        except: ...
+        return self.__font_surf
 
 # base text class -------------------------------
 
+# sprites ---------------------------------------
 
 __image_color_key__ = (0,0,0)
 def load_pg_image(file_name_: str) -> pygame.Surface:
@@ -755,14 +911,25 @@ def load_pg_image(file_name_: str) -> pygame.Surface:
     return surf
 
 class Sprite:
-    def __init__(self, file_name_: str | None = None) -> None:
+    def __init__(self, file_name_: str | None = None, tranfrom_and_rotate: bool = True, rotate_buffering: bool = False) -> None:
         self._file_name = file_name_
         if file_name_ is not None:
             self._start_sprite = self._load_sprite(self._file_name)
+        self._transform_and_rotate = tranfrom_and_rotate
+        self._rotate_buffering = rotate_buffering
         
         self._angle = 0
         self._scale = 1
         self._center_pos = [0, 0]
+        self._r_buffer = []
+        
+        if self._rotate_buffering:
+            self.buffering_rotate()
+        
+    def buffering_rotate(self):
+        for i in range(360):
+            self._r_buffer.append(pygame.transform.rotate(self._start_sprite, i).convert_alpha())
+        print('buffering...')
     
     def start_sprite(self, surf_: pygame.Surface):
         self._start_sprite = surf_
@@ -776,10 +943,26 @@ class Sprite:
         return load_pg_image(_file_name)
     
     def _set_transform_propertys(self) -> pygame.Surface:
-        return pygame.transform.rotate(
-            pygame.transform.scale(self._start_sprite, [self._start_sprite.get_width()*self.scale, self._start_sprite.get_height()*self.scale]),
-            self.angle
-        )
+        if not self._rotate_buffering:
+            if self._transform_and_rotate:
+                return pygame.transform.rotate(
+                    pygame.transform.scale(self._start_sprite, [self._start_sprite.get_width()*self.scale, self._start_sprite.get_height()*self.scale]),
+                    self.angle
+                )
+            else:
+                
+                surf = pygame.transform.rotate(self._start_sprite, self.angle)
+                surf = pygame.transform.scale(
+                    surf,  [surf.get_width()*self.scale, surf.get_height()*self.scale]
+                )
+                return surf
+        else:
+            surf = self._r_buffer[int(self.angle)%360]
+            surf = pygame.transform.scale(
+                surf, [surf.get_width()*self.scale, surf.get_height()*self.scale]
+            )
+            return surf
+    
     @property
     def center(self) -> Tuple[float, float]:
         return self._center_pos
@@ -805,6 +988,11 @@ class Sprite:
     def scale(self, scale: float):
         # Set scale property from Sprite
         self._scale = scale
+        
+    @property
+    def size(self):
+        surf = self._set_transform_propertys()
+        return [*surf.get_size()]
     
     def transform(self, _angle: None | float = None, _scale: None | float = None) -> None:
         # Set transform propertis from Sprite
@@ -935,21 +1123,423 @@ class AnimatedSprite:
         
     def render(self, surf_: pygame.Surface):
         self._sprites[self._index].render(surf_)
+
+class Tiles(TypedDict):
+    up: Sprite
+    up_left: Sprite
+    up_right: Sprite
+    down: Sprite
+    down_left: Sprite
+    down_right: Sprite
+    left: Sprite
+    right: Sprite
+    center: Sprite
+    
+    vertical_up: Sprite
+    vertical_middle: Sprite
+    vertical_down: Sprite
+    
+    horisontal_left: Sprite
+    horisontal_middle: Sprite
+    horisontal_right: Sprite
+    
+    one: Sprite
+    
+    center_left: Sprite
+    center_right: Sprite
+
+class TileSheat:
+    def __init__(self, tiles_file: str, tile_size: Tuple[int, int], tiles_count: int) -> None:
+        self._tile_size = tile_size
+        self._tiles_count = tiles_count
+        self._tiles_file = load_pg_image(tiles_file)
+        self._cutting_sprites: Tuple[pygame.Surface, ...] = []
+        self._converting_sprites: Tuple[Sprite, ...] = []
         
-def load_sprites_sheet(file_name_: str, ts_size_: Tuple[int,int], tiles_count_: int, tile_size_: Tuple[int, int] = [10, 10])-> Tuple[Sprite, ...]:
-    img = load_pg_image(file_name_)
-    sp_ind = 0
-    sprites = []
-    for j in range(ts_size_[1]):
-        for i in range(ts_size_[0]):
-            sprites.append(  Sprite(img.subsurface([i*tile_size_[0],j*tile_size_[1]], tile_size_).convert() ))
-            sp_ind+=1
-            if sp_ind == tiles_count_:
-                return sprites
+        self.tiles = Tiles()
+        
+    def cutting(self):
+        x = 0
+        y = 0
+        for i in range(self._tiles_count):
+            sprite = self._tiles_file.subsurface([x,y, self._tile_size[0], self._tile_size[1]])
+            self._cutting_sprites.append(sprite)
+            x+=self._tile_size[0]
+            if x==self._tiles_file.get_width():
+                x = 0
+                y += self._tile_size[1]
+                
+        self.converting()
+                
+    def converting(self):
+        for spr in self._cutting_sprites:
+            sprite = Sprite().start_sprite(spr)
+            self._converting_sprites.append(sprite)
             
+    def create(self):
+        self.cutting()
+        
+        self.tiles['up_left'] = self._converting_sprites[0]
+        self.tiles["up"] = self._converting_sprites[1]
+        self.tiles['up_right'] = self._converting_sprites[2]
+        
+        self.tiles["left"] = self._converting_sprites[4]
+        self.tiles['center'] = self._converting_sprites[5]
+        self.tiles["right"] = self._converting_sprites[6]
+        
+        self.tiles['down_left'] = self._converting_sprites[8]
+        self.tiles["down"] = self._converting_sprites[9]
+        self.tiles['down_right'] = self._converting_sprites[10]
+                
+        self.tiles['vertical_up'] = self._converting_sprites[3]
+        self.tiles['vertical_middle'] = self._converting_sprites[7]
+        self.tiles['vertical_down'] = self._converting_sprites[11]
+        
+        self.tiles["horisontal_left"] = self._converting_sprites[12]
+        self.tiles["horisontal_middle"] = self._converting_sprites[13]
+        self.tiles["horisontal_right"] = self._converting_sprites[14]
+        
+        self.tiles["one"] = self._converting_sprites[15] 
+        
+        self.tiles['center_left'] = self._converting_sprites[16]
+        self.tiles['center_right'] = self._converting_sprites[17]
+        
+# sprites ---------------------------------------
 
 
 
+# map generators --------------------------------
+
+def tiles_scale(TileSheat, scale):
+    for tilename in TileSheat.tiles:
+        TileSheat.tiles[tilename].scale = scale
+
+def get_pos_with_xy_and_size(x, y, size):
+    return [x*size[0], y*size[1]]
+
+def get_pos_with_xy_and_size_no_center(x, y, size):
+    return [x*size[0]+size[0]/2, y*size[1]+size[1]/2]
+
+def create_map_surf_by_tilesheats_and_array(tile_sheats_dict, map_array):
+    
+    #map_array = copy(map_array)
+    
+    tile_size = tile_sheats_dict[1].tiles['one'].size
+    map_surf_size = [(len(map_array[0]))*tile_size[0],(len(map_array))*tile_size[1]]
+    
+    map_surf = pygame.Surface(map_surf_size, flags=pygame.SRCALPHA, depth=32)
+    
+
+    tiles_keys = tile_sheats_dict.keys()
+    
+    
+    for x in range(len(map_array)):
+        for y in range(len(map_array[x])+1):
+            try:
+                find = True
+                pos = get_pos_with_xy_and_size_no_center(x, y, tile_size)
+                tsh = tile_sheats_dict[map_array[y][x]]
+            except:
+                find = False
+                    
+
+                
+            if find:
+                tile_name = 'one'
+                
+                x_right = x+1
+                y_down = y+1
+                x_left = x-1
+                y_up = y-1
+                if x_right == len(map_array[0]):    x_right = 0
+                if y_down == len(map_array):        y_down  = 0
+                
+                if map_array[y_up][x] not in tiles_keys and map_array[y_down][x] not in tiles_keys:
+                    if (
+                        map_array[y][x_left] in tiles_keys and
+                        map_array[y][x_right] in tiles_keys
+                        ):
+                        tile_name = 'horisontal_middle'
+                    elif (
+                        map_array[y][x_left] not in tiles_keys and
+                        map_array[y][x_right] in tiles_keys
+                        ):
+                        tile_name = 'horisontal_left'
+                    elif (
+                        map_array[y][x_left] in tiles_keys and
+                        map_array[y][x_right] not in tiles_keys
+                        ):
+                        tile_name = 'horisontal_right'
+                
+                elif map_array[y_up][x] in tiles_keys and map_array[y_down][x] not in tiles_keys:
+                    
+                    if (
+                        map_array[y][x_left] not in tiles_keys and
+                        map_array[y][x_right] not in tiles_keys
+                        ):
+                        tile_name = 'vertical_down'
+                    elif (
+                        map_array[y][x_left] in tiles_keys and
+                        map_array[y][x_right] in tiles_keys
+                        ):
+                        tile_name = 'down'
+                    elif (
+                        map_array[y][x_left] not in tiles_keys and
+                        map_array[y][x_right] in tiles_keys
+                        ):
+                        tile_name = 'down_left'
+                    elif (
+                        map_array[y][x_left] in tiles_keys and
+                        map_array[y][x_right] not in tiles_keys
+                        ):
+                        tile_name = 'down_right'
+                
+                elif map_array[y_up][x] not in tiles_keys:
+                    if (
+                        map_array[y][x_left] not in tiles_keys and
+                        map_array[y][x_right] not in tiles_keys
+                        ):
+                        tile_name = 'vertical_up'
+                    elif (
+                        map_array[y][x_left] in tiles_keys and
+                        map_array[y][x_right] in tiles_keys
+                        ):
+                        tile_name = 'up'
+                    elif (
+                        map_array[y][x_left] not in tiles_keys and
+                        map_array[y][x_right] in tiles_keys
+                        ):
+                        tile_name = 'up_left'
+                    elif (
+                        map_array[y][x_left] in tiles_keys and
+                        map_array[y][x_right] not in tiles_keys
+                        ):
+                        tile_name = 'up_right'
+                
+                elif map_array[y_up][x] in tiles_keys:
+            
+                    if (
+                        map_array[y][x_left] not in tiles_keys and
+                        map_array[y][x_right] not in tiles_keys
+                        ):
+                        tile_name = 'vertical_middle'
+                    elif (
+                        map_array[y][x_left] in tiles_keys and
+                        map_array[y][x_right] in tiles_keys
+                        ):
+                        if (
+                            map_array[y_up][x_left] in tiles_keys and
+                            map_array[y_up][x_right] in tiles_keys
+                            ):
+                            tile_name = 'center'
+                        elif (
+                            map_array[y_up][x_left] not in tiles_keys and
+                            map_array[y_up][x_right] in tiles_keys
+                            ):
+                            tile_name = 'center_right'
+                        elif (
+                            map_array[y_up][x_left] in tiles_keys and
+                            map_array[y_up][x_right] not in tiles_keys
+                            ):
+                            tile_name = 'center_left'
+                        
+                    elif (
+                        map_array[y][x_left] not in tiles_keys and
+                        map_array[y][x_right] in tiles_keys
+                        ):
+                        tile_name = 'left'
+                    elif (
+                        map_array[y][x_left] in tiles_keys and
+                        map_array[y][x_right] not in tiles_keys
+                        ):
+                        tile_name = 'right'
+                        
+                
+                
+                
+                
+                
+                tsh.tiles[tile_name].center = pos
+                tsh.tiles[tile_name].render(map_surf)
+                
+    return map_surf
+
+def create_map_surf_by_tilesheats_and_array_no_connect(tile_sheats_dict, map_array_all):
+    
+    tile_size = tile_sheats_dict[1].tiles['one'].size
+    map_surf_size = [(len(map_array_all[0]))*tile_size[0],(len(map_array_all))*tile_size[1]]
+
+    g_map_surf = pygame.Surface(map_surf_size, flags=pygame.SRCALPHA, depth=32)
+    
+    mass = []
+    for i in map_array_all:
+        mass.extend(i)
+    mass = set(mass)
+    mass.remove(0)
+    lists_count = list(mass)
+    
+    new_generated_maps = []
+    new_generated_maps_size = [len(map_array_all[0]), len(map_array_all)]
+    
+    for k in lists_count:
+        nm = []
+        for y in range(new_generated_maps_size[1]):
+            mapp = []
+            for x in range(new_generated_maps_size[0]):
+                if map_array_all[y][x] == k:
+                    mapp.append(k)
+                else:
+                    mapp.append(0)
+            nm.append(mapp)
+        
+        new_generated_maps.append(nm)
+    
+    
+    
+    tiles_keys = list(tile_sheats_dict.keys())
+
+    for i, map_array  in enumerate( new_generated_maps ):
+        map_surf = pygame.Surface(map_surf_size, flags=pygame.SRCALPHA, depth=32)
+        
+        
+        
+        for x in range(len(map_array)):
+            for y in range(len(map_array[x])+1):
+                try:
+                    find = True
+                    pos = get_pos_with_xy_and_size_no_center(x, y, tile_size)
+                    tsh = tile_sheats_dict[map_array[y][x]]
+                except:
+                    find = False
+                        
+
+                    
+                if find:
+                    tile_name = 'one'
+                    
+                    x_right = x+1
+                    y_down = y+1
+                    x_left = x-1
+                    y_up = y-1
+                    if x_right == len(map_array[0]):    x_right = 0
+                    if y_down == len(map_array):        y_down  = 0
+                    
+                    if map_array[y_up][x] not in tiles_keys and map_array[y_down][x] not in tiles_keys:
+                        if (
+                            map_array[y][x_left] in tiles_keys and
+                            map_array[y][x_right] in tiles_keys
+                            ):
+                            tile_name = 'horisontal_middle'
+                        elif (
+                            map_array[y][x_left] not in tiles_keys and
+                            map_array[y][x_right] in tiles_keys
+                            ):
+                            tile_name = 'horisontal_left'
+                        elif (
+                            map_array[y][x_left] in tiles_keys and
+                            map_array[y][x_right] not in tiles_keys
+                            ):
+                            tile_name = 'horisontal_right'
+                    
+                    elif map_array[y_up][x] in tiles_keys and map_array[y_down][x] not in tiles_keys:
+                        
+                        if (
+                            map_array[y][x_left] not in tiles_keys and
+                            map_array[y][x_right] not in tiles_keys
+                            ):
+                            tile_name = 'vertical_down'
+                        elif (
+                            map_array[y][x_left] in tiles_keys and
+                            map_array[y][x_right] in tiles_keys
+                            ):
+                            tile_name = 'down'
+                        elif (
+                            map_array[y][x_left] not in tiles_keys and
+                            map_array[y][x_right] in tiles_keys
+                            ):
+                            tile_name = 'down_left'
+                        elif (
+                            map_array[y][x_left] in tiles_keys and
+                            map_array[y][x_right] not in tiles_keys
+                            ):
+                            tile_name = 'down_right'
+                    
+                    elif map_array[y_up][x] not in tiles_keys:
+                        if (
+                            map_array[y][x_left] not in tiles_keys and
+                            map_array[y][x_right] not in tiles_keys
+                            ):
+                            tile_name = 'vertical_up'
+                        elif (
+                            map_array[y][x_left] in tiles_keys and
+                            map_array[y][x_right] in tiles_keys
+                            ):
+                            tile_name = 'up'
+                        elif (
+                            map_array[y][x_left] not in tiles_keys and
+                            map_array[y][x_right] in tiles_keys
+                            ):
+                            tile_name = 'up_left'
+                        elif (
+                            map_array[y][x_left] in tiles_keys and
+                            map_array[y][x_right] not in tiles_keys
+                            ):
+                            tile_name = 'up_right'
+                    
+                    elif map_array[y_up][x] in tiles_keys:
+                
+                        if (
+                            map_array[y][x_left] not in tiles_keys and
+                            map_array[y][x_right] not in tiles_keys
+                            ):
+                            tile_name = 'vertical_middle'
+                        elif (
+                            map_array[y][x_left] in tiles_keys and
+                            map_array[y][x_right] in tiles_keys
+                            ):
+                            if (
+                                map_array[y_up][x_left] in tiles_keys and
+                                map_array[y_up][x_right] in tiles_keys
+                                ):
+                                tile_name = 'center'
+                            elif (
+                                map_array[y_up][x_left] not in tiles_keys and
+                                map_array[y_up][x_right] in tiles_keys
+                                ):
+                                tile_name = 'center_right'
+                            elif (
+                                map_array[y_up][x_left] in tiles_keys and
+                                map_array[y_up][x_right] not in tiles_keys
+                                ):
+                                tile_name = 'center_left'
+                            
+                        elif (
+                            map_array[y][x_left] not in tiles_keys and
+                            map_array[y][x_right] in tiles_keys
+                            ):
+                            tile_name = 'left'
+                        elif (
+                            map_array[y][x_left] in tiles_keys and
+                            map_array[y][x_right] not in tiles_keys
+                            ):
+                            tile_name = 'right'
+                            
+                    
+                    
+                    
+                    
+                    
+                    tsh.tiles[tile_name].center = pos
+                    tsh.tiles[tile_name].render(map_surf)
+
+        
+        g_map_surf.blit(map_surf, [0,0])
+        
+    return g_map_surf
+        
+# map generators --------------------------------
+
+# base math class -------------------------------
 
 def two_element_typing_xy(iterable_: list | tuple | Vector2):
     if isinstance(iterable_, (list, tuple)):
@@ -970,6 +1560,34 @@ def distance(
     dy = point_1[1] - point_2[1]
     _distance = math.sqrt(dx**2 + dy**2)
     return _distance
+
+def distance_to_line(
+    l_point_1: Any | typing.Tuple[int,int], l_point_2: Any | typing.Tuple[int,int], point: Any | typing.Tuple[int,int]
+):
+    d1 = distance(l_point_2, point)
+    d2 = distance(l_point_1, point)
+    l = distance(l_point_2, l_point_1)
+    p = (d1 + d2 + l) /2
+    h = (2*math.sqrt(p*(p-l)*(p-d1)*(p-d2)))/l
+    return h
+    
+def distance_to_line_stop(
+    l_point_1: Any | typing.Tuple[int,int], l_point_2: Any | typing.Tuple[int,int], point: Any | typing.Tuple[int,int]
+):
+    d1 = distance(l_point_2, point)
+    d2 = distance(l_point_1, point)
+    l = distance(l_point_2, l_point_1)
+    p = (d1 + d2 + l) /2
+    h = (2*math.sqrt(p*(p-l)*(p-d1)*(p-d2)))/l
+    
+    l_angle = angle_to(l_point_1, l_point_2)
+    p1_angle = angle_to(l_point_1, point) - l_angle
+    p2_angle = angle_to(l_point_2, point) - l_angle
+    #print(p1_angle, p2_angle)
+    if (p1_angle<90 or p1_angle>270) and (p2_angle>90 and p2_angle<270):
+        return h
+    else:
+        return None
 
 def rotate_angle(origin, point, angle):
     """
@@ -1889,16 +2507,414 @@ class Keyboard:
         else:
             return False
 
-
 # base input class ------------------------------
 
+# physicks --------------------------------------
 
-# base socket manager ---------------------------
+IDS = 0
 
+class Colliders:
+    CTYPE_RECT = 'Rect'
+    CTYPE_CIRCLE = 'circle'
+    GRAVITY = Vector2(0,0.5)
+    
+    class CRect(Rect):
+        def __init__(self, start_pos_: Tuple[float, float],
+                    start_size_: Tuple[float, float],
+                    start_speed_: Vector2 = Vector2(0,0),
+                    statick: bool = True,
+                    bounsing: Vector2 = Vector2(0,0),
+                    trenie: Vector2 = Vector2(0.9,0.9),
+                    colliding_down: bool = True,
+                    colliding_up: bool = True) -> None:
+            global IDS
+            super().__init__(start_pos_[0],start_pos_[1], start_size_[0], start_size_[1])
+            self._speed = start_speed_
+            self._statick = statick
+            self._trenie = trenie
+            self._colliding_down = colliding_down
+            self._colliding_up = colliding_up
+            
+            
+            
+            
+            self._bounsing = bounsing
+            self._type = Colliders.CTYPE_RECT
+            
+            self._collide = {
+                'up':False,
+                'down':False,
+                'left':False,
+                'right':False
+            }
+            self._id = IDS
+            IDS+=1
+            
+        @property
+        def statick(self) -> bool: return self._statick
+        
+        @property
+        def id(self) -> int: return self._id
+        
+        @property
+        def type(self) -> str: return self._type
+        
+        def set_defauld_collides(self):
+            self._collide = {
+                'up':False,
+                'down':False,
+                'left':False,
+                'right':False
+            }
+        
+        def get_collides(self):
+            return self._collide
+        
+    class CCircle(Circle):
+        def __init__(self, start_pos_: Tuple[float, float], start_radius_: Tuple[float, float], start_speed_: Vector2 = Vector2(0,0), statick: bool = True, bounsing: float = 0.9) -> None:
+            global IDS
+            super().__init__(start_pos_, start_radius_)
+            self.xy = start_pos_
+            self._radius = start_radius_
+            self._speed = start_speed_
+            self._statick = statick
+            
+            self._bounsing = bounsing
+            self._type = Colliders.CTYPE_CIRCLE
+            self._id = IDS
+            IDS+=1
+            
+        @property
+        def statick(self) -> bool: return self._statick
+        
+        @property
+        def id(self) -> int: return self._id
+        
+        @property
+        def type(self) -> str: return self._type
+        
+    def __init__(self, surf):
+        self._space:Tuple[Colliders.CRect, ...] = []
+        self._surf = surf
+        self.render_all_colliders = False
+        self.render_all_speeds = False
+        self.render_all_staticks = False
+        self.text = Text('arial',20,'None','red',True)
+        
 
+        
+    def add(self, collider: [CRect, CCircle]):
+        self._space.append(collider)
+        
+    def __simulate_gravity__(self, collider):
+        collider._speed += Colliders.GRAVITY
+        
+    def __simulate_collider_pos_x__(self, collider):
+        collider.x += collider._speed.x
+        
+    def __simulate_collider_pos_y__(self, collider):
+        
+        collider.y += collider._speed.y
+        
+    def __collide_all_objects__(self, collider):
+        collide_objs = []
+        for j, collider2 in enumerate( self._space ):
+            if collider.id != collider2.id:
+                if collider2.type == Colliders.CTYPE_RECT:
+                    if collider.collide_rect(collider2):
+                        collide_objs.append(collider2)
+        
+        return collide_objs
+    
+    def __simulate_attach_y__(self, collider: CRect , collide_objects: Tuple[CRect, ...]) -> None:
+        for collider_a in collide_objects:
+            if collider_a.statick:
+                collider._speed.x*=collider_a._trenie.x
+                if collider_a._colliding_down:
+                    if collider._speed.y>0:
+                        collider.y_down = collider_a.y_up
+                        collider._speed.y*=-collider._bounsing.y
+                        collider._collide['down'] = True
+                        break
+                        
+                    elif collider._speed.y<=0 :
+                        collider.y_up = collider_a.y_down
+                        collider._speed.y*=-collider._bounsing.y  
+                        collider._collide['up'] = True
+                        break
+                    
+                else:
+                    
+                    if collider._speed.y > 0:
+                        
+                        collider.y_down = collider_a.y_up
+                        collider._speed.y*=-collider._bounsing.y
+                        collider._collide['down'] = True
+                        break
+            
+            
+                
+    def __simulate_attach_x__(self, collider: CRect , collide_objects: Tuple[CRect, ...]) -> None:
+        for collider_a in collide_objects:
+            if collider_a.statick and collider.wh == collider.end_size:
+                
+                if collider_a._colliding_down:
+                    collider._speed.y*=collider_a._trenie.y
+                    if collider._speed.x>0:
+                        collider.x_right = collider_a.x_left
+                        collider._speed.x*=-collider._bounsing.x
+                        collider._collide['right'] = True
+                        break
+                        
+                    elif collider._speed.x<=0:
+                        collider.x_left = collider_a.x_right
+                        collider._speed.x*=-collider._bounsing.x 
+                        collider._collide['left'] = True
+                        break
+                
+            
+            
+            
+                    
+    @NewProcess()
+    def printing(self):
+        while True:
+            sleep(0.5)
+            print('-'*20)
+            for c in self._space:
+                print(c.id, c._speed)
+        
+    def update(self):
+        for i, collider in enumerate(self._space):
+            collider.set_defauld_collides()
 
+            if self.render_all_colliders:
+                collider.draw(self._surf)
+                #self.text.draw(self._surf, collider.center, True, 'id: '+str(collider.id), 'gray')
+            if self.render_all_staticks:
+                if collider.statick:
+                    collider.draw(self._surf)
+            
+            if self.render_all_speeds:
+                Draw.draw_line(self._surf, collider.xy, [collider.x+collider._speed.x, collider.y+collider._speed.y], 'blue', 3)
+            
+            #collider._speed.x = round(collider._speed.x, 4)
+            #collider._speed.y = round(collider._speed.y, 4)
+            if abs(collider._speed.y)<0.01:
+                collider._speed.y = 0
+            
+            
+                
+            if not collider.statick:
+                self.__simulate_collider_pos_y__(collider)
+                
+                collider._speed.y+=Colliders.GRAVITY.y
+                
+                collide_objects = self.__collide_all_objects__(collider)
+            
+                self.__simulate_attach_y__(collider, collide_objects)
+            
+            if not collider.statick:
+                self.__simulate_collider_pos_x__(collider)
+                
+                collider._speed.x+=Colliders.GRAVITY.x
+                
+                collide_objects = self.__collide_all_objects__(collider)
+            
+                self.__simulate_attach_x__(collider, collide_objects)
+            
+            collider.UDT()
+                
+        self._space = list(filter(lambda elem: elem.w>1 and elem.h>1, self._space))
+        
+class Camera:
+    def __init__(self) -> None:
+        self.sx = 0
+        self.sy = 0
+        
+    def simulate(self, target_pos, player_pos, delta = 0.5):
+        self.sx = (target_pos[0]-player_pos[0])*delta
+        self.sy = (target_pos[1]-player_pos[1])*delta
+                
 
+# physicks --------------------------------------
 
+class DataLoader:
+    def __file_test__(self, file_name_: str) -> bool:
+        if file_name_.split('.')[1] == 'data':
+            return True
+        return False
+    
+    def strokes_with_file(self, file_name_: str) -> list[str]:
+        file = open(file_name_)
+        strokes = file.readlines()
+        return strokes
+    
+    def get_stroke_block_type(self, stroke_: str):
+        open_index = stroke_.index('[')
+        close_index = stroke_.index(']')
+        return stroke_[open_index+2:close_index-1]
+    
+    def finde_with_stroke_var_name_and_file(self, stroke_: str):
+        equal_index = stroke_.index('=')
+        var_name = stroke_[:equal_index-1]
+        file_name = stroke_[equal_index+2:-1]
+        
+        return var_name, file_name
+        
+    def replace_new_lines(self, strokes_: list[str]) -> list[str]:
+        new_strings = []
+        for stroke in strokes_:
+            new_strings.append(stroke.replace('\n',' '))
+        return new_strings
+    
+    def generate_data_tree(self, strokes_: list[str]) -> list:
+        data_types = [
+            'tilesheats',
+            'sprites',
+            'animations'
+        ]
+        
+        datas = {
+            'tilesheats':[],
+            'sprites':[],
+            'animations':[]
+        }
+        
+        data_write_opened = False
+        data_block_type = None
+        
+        strokes_ = self.replace_new_lines(strokes_)
+        
+        strokes = []
+        for stroke in strokes_:
+            if stroke!=' ':
+                strokes.append(stroke)
+                
+        
+        for i, stroke in enumerate( strokes ):
+            if stroke[0] == '>':
+                data_write_opened = False
+            
+            if data_write_opened:
+                if stroke != '' and stroke != ' ' and stroke != '\n':
+                    if data_block_type == data_types[0]:
+                        var_name, d = self.finde_with_stroke_var_name_and_file(stroke)
+                        
+                        strings = d.split(' ')
+                        file = strings[0][1:-1]
+                        tile_size = int(strings[1])
+                        tiles_count = int(strings[2])
+                        data = [file, tile_size, tiles_count]
+                        
+                        print(f'Tileshet {var_name} loaded!')
+                        datas[data_block_type].append([var_name, data])
+                        
+                    if data_block_type == data_types[1]:
+                        var_name, d = self.finde_with_stroke_var_name_and_file(stroke)
+                        
+                        strings = d.split(' ')
+                        file = strings[0][1:-1]
+                        tr = int(strings[1])
+                        rb = int(strings[2])
+                        data = [file, tr, rb]
+                        
+                        print(f'Sprite {var_name} loaded!')
+                        datas[data_block_type].append([var_name, data])
+                
+            if stroke[0] == '<':
+                data_block_type = self.get_stroke_block_type(stroke)
+                if data_block_type in data_types:
+                    data_write_opened = True
+                
+        return datas
+        
+    def generate_objects_for_data_tree(self, data_tree_: dict):
+        data_types = [
+            'tilesheats',
+            'sprites',
+            'animations'
+        ]
+        
+        datas = {}
+        
+        for object_type in data_tree_:
+            objects = data_tree_[object_type]
+            
+            for obj in objects:
+                if object_type == data_types[0]:
+                    data = TileSheat(obj[1][0], [obj[1][1],obj[1][1]], obj[1][2])
+                    data.create()
+                    datas[obj[0]] = data
+                if object_type == data_types[1]:
+                    data = Sprite(obj[1][0], obj[1][1], obj[1][2])
+                    datas[obj[0]] = data
+                    
+        return datas
+    
+    def generate_objects_for_data_tree_tile_sheats(self, data_tree_: dict):
+        data_types = [
+            'tilesheats',
+        ]
+        
+        datas = {}
+        
+        for object_type in data_tree_:
+            objects = data_tree_[object_type]
+            
+            for obj in objects:
+                if object_type == data_types[0]:
+                    data = TileSheat(obj[1][0], [obj[1][1],obj[1][1]], obj[1][2])
+                    data.create()
+                    datas[obj[0]] = data
+                    
+        return datas
+                
+    def Load_from_file(self, file_name_: str):
+        '''
+        {name}.data file config
+        
+        <[ sprites ]
+        
+        {sprite_name} = '{file_name}' {rotate_buffer} {0}
+        
+        >[ sprites ]
+        
+        <[ tilesheats ]
+        
+        {tilesheat_name} = '{file_name}' {tile_size} {tiles_count}
+        
+        >[ tilesheats ]
+        
+        '''
+        
+        if self.__file_test__(file_name_):
+            
+            file = self.strokes_with_file(file_name_)
+            data_tree = self.generate_data_tree(file)
+            return self.generate_objects_for_data_tree(data_tree)
+            
+    def Load_from_file_tilesheats(self, file_name_: str):
+        '''
+        {name}.data file config
+        
+        <[ tilesheats ]
+        
+        {tilesheat_name} = '{file_name}' {tile_size} {tiles_count}
+        
+        >[ tilesheats ]
+        
+        '''
+        
+        if self.__file_test__(file_name_):
+            
+            file = self.strokes_with_file(file_name_)
+            data_tree = self.generate_data_tree(file)
+            return self.generate_objects_for_data_tree_tile_sheats(data_tree)
+            
+#DataLoader().Load_from_file(r'api\test.data')
+            
+            
 
 
 

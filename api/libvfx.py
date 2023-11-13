@@ -6,10 +6,12 @@ try:
 except:
     from lib import *
 
+
 class particle_shapes:
     CIRCLE = 'CIRCLE_SHAPE'
     RECT = "RECT_SHAPE"
     IMAGE = "IMAGE_SHAPE"
+    ANIMATE_IMAGE = 'ANIIMATE_IMAGE'
     BLEND_CIRCLE = 'BLEND_CIRCLE_SHAPE'
 
 class particle_spawner_types:
@@ -41,8 +43,27 @@ class _particle:
         self.POS: Tuple[float, float] = [0,0]
         self.TIMER: float = 0
         self.SHAPE_RENDERER: bool = True
+        self.KILL_EVENT: callable = None
+        self.ID: int = random.randint(0,99999999999999)
+        self.UPDATE_EVENT_TIME: int | float = 10
+        self.NAME = 'kill'
         
         # All particle propertis -----------------------------------------
+        
+        # Collider settings ----------------------------------------------
+        
+        self.COLLIDER_BOUNSING: Vector2 = Vector2(0, 0)
+        self.COLLIDER_TRENIE: Vector2 = Vector2(0, 0)
+        
+        # Collider settings ----------------------------------------------
+        
+        # Color gradients ------------------------------------------------
+        
+        self.GRADIENT: PrettyGradient = None
+        self.GRADIENT_MAX_STEP: int = 255
+        self.GRADIENT_STEP: int = 0
+        
+        # Color gradients ------------------------------------------------
         
         # Images ---------------------------------------------------------
         
@@ -57,6 +78,21 @@ class _particle:
         self.SPRITE_SCALE_RANDOMER: int = 0
 
         # Images ---------------------------------------------------------
+        
+        # AnimateSprites -------------------------------------------------
+        
+        self.ANIMATE_SPRITE: AnimatedSprite = None
+        self.ANIMATE_SPRITE_LIST: Tuple[AnimatedSprite, ...] = []
+        self.ANIMATE_SPRITE_START_SCALE: float = 1
+        self.ANIMATE_SPRITE_SCALE_RESIZE: float = -0.01
+        self.ANIMATE_SPRITE_ANGLE_TYPE: sprite_angle_types = sprite_angle_types.TO_ROTATE
+        self.ANIMATE_SPRITE_ROTATE_ANGLE: float = 0.1
+        self.ANIMATE_SPRITE_START_ANGLE: float = 0
+        self.ANIMATE_SPRITE_ADD_ANGLE: float = 0
+        self.ANIMATE_SPRITE_SCALE_RANDOMER: int = 0
+        
+        
+        # AnimateSprites -------------------------------------------------
         
         # Lines ----------------------------------------------------------
         
@@ -101,6 +137,7 @@ class _particle:
         self.SPEED: Vector2 = Vector2(0,0)
         self.SPEED_RANDOMER: float = 0
         self.GRAVITY_VECTOR: Tuple[float, float] = [0,0]
+        self.COLLIDER: Colliders.CRect = None
 
         # Speed propertis ------------------------------------------------
         
@@ -173,6 +210,7 @@ class ParticleSpace:
         self._update_ticks = update_ticks_
         self._addtimer = 0
         self._space: Tuple[Particle, ...] = []
+        self._simulate_space = None
         
     def __construct_particle__(self, particle_: Particle, spavner_: ParticleSpawner):
         p_dict = {}
@@ -222,6 +260,11 @@ class ParticleSpace:
         if len(p_dict['SPRITE_LIST'])!=0:
             p_dict['SPRITE'] = random.choice(p_dict['SPRITE_LIST'])
             
+        p_dict['ANIMATE_SPRITE_START_ANGLE'] = random.randint(0, 360)
+        p_dict['ANIMATE_SPRITE_START_SCALE'] += random.randint(0, p_dict['ANIMATE_SPRITE_SCALE_RANDOMER']*1000)/1000
+        if len(p_dict['ANIMATE_SPRITE_LIST'])!=0:
+            p_dict['ANIMATE_SPRITE'] = random.choice(p_dict['ANIMATE_SPRITE_LIST'])
+            
         # create sprite -----------------------------------------------   
         
         # create radius -----------------------------------------------
@@ -232,13 +275,13 @@ class ParticleSpace:
         # create radius -----------------------------------------------
         
         # create speed ------------------------------------------------
-        
+
         p_dict['SPEED']+=Vector2([0,random.randint(0, p_dict['SPEED_RANDOMER']*1000)/1000])
         p_dict['SPEED'].set_angle(p_dict['SPEED_ANGLE']+random.randint(-p_dict['SPEED_DURATION'],p_dict['SPEED_DURATION']))
         if p_dict['SPEED_ROTATION']:
             if p_dict['SPEED_RANDOM_ROTATION_ANGLE'] != False:
                 p_dict['SPEED_ROTATION_ANGLE'] = random.randint(p_dict['SPEED_RANDOM_ROTATION_ANGLE'][0],p_dict['SPEED_RANDOM_ROTATION_ANGLE'][1])
-            
+
         # create speed ------------------------------------------------
         
         # create size -------------------------------------------------
@@ -256,7 +299,9 @@ class ParticleSpace:
             p_dict['COLOR'] = Color.random().rgb
         if len(p_dict['COLOR_FROM_DICT'])!= 0:
             p_dict['COLOR'] = random.choice(p_dict['COLOR_FROM_DICT'])
-        
+        if p_dict['GRADIENT'] is not None:
+            p_dict['GRADIENT'].generate_gradient_surfs()
+            p_dict['GRADIENT'].generate()
         # create color ------------------------------------------------
 
         # create dummy particle ---------------------------------------
@@ -270,12 +315,18 @@ class ParticleSpace:
     def tick(self):
         self._addtimer+=1
     
-    def add(self, particle_: Particle, spawner_: ParticleSpawner, count_: int, sleep = 1):
+    def add(self, particle_: Particle, spawner_: ParticleSpawner, count_: int, sleep = 1, simulate_space_ = None):
 
         if self._addtimer%sleep==0:
 
             for i in range(count_):
                 particle = self.__construct_particle__(particle_, spawner_)
+                if simulate_space_ is not None:
+                    particle.COLLIDER = Colliders.CRect(particle.POS, [particle.RADIUS, particle.RADIUS], particle.SPEED, False, particle.COLLIDER_BOUNSING, trenie=particle.COLLIDER_TRENIE)
+                    particle.COLLIDER._id = particle.ID
+                    simulate_space_.add(particle.COLLIDER)
+                    self._simulate_space = simulate_space_
+                    
                 self._space.append(particle)
                 
     def _construct_blend_circle(self, light_color, particle, surf):
@@ -307,15 +358,28 @@ class ParticleSpace:
             
             #? RENDER SHAPES -----------------------------------------------------------------------------------------------------------------
             if particle.SHAPE_RENDERER:
+                if particle.GRADIENT is None:
+                    color = particle.COLOR
+                else:
+                    color = particle.GRADIENT.get_percent(particle.GRADIENT_STEP/particle.GRADIENT_MAX_STEP)
+                particle.COLOR = color
                 if particle.SHAPE == particle_shapes.CIRCLE:
-                    Draw.draw_circle(self._win.surf, particle.POS, particle.RADIUS, particle.COLOR)
+                    Draw.draw_circle(self._win.surf, particle.POS, particle.RADIUS, color)
                 elif particle.SHAPE == particle_shapes.RECT:
-                    Draw.draw_rect(self._win.surf, center_rect(particle.POS, particle.SIZE,True), particle.SIZE, particle.COLOR)
+                    Draw.draw_rect(self._win.surf, center_rect(particle.POS, particle.SIZE,True), particle.SIZE, color)
                 elif particle.SHAPE == particle_shapes.IMAGE:
                     particle.SPRITE.center = particle.POS
                     particle.SPRITE.angle = particle.SPRITE_START_ANGLE
                     particle.SPRITE.scale = particle.SPRITE_START_SCALE
                     particle.SPRITE.render(self._win.surf)
+                elif particle.SHAPE == particle_shapes.ANIMATE_IMAGE:
+                    particle.ANIMATE_SPRITE.center = particle.POS
+                    particle.ANIMATE_SPRITE.angle = particle.ANIMATE_SPRITE_START_ANGLE
+                    particle.ANIMATE_SPRITE.scale = particle.ANIMATE_SPRITE_START_SCALE
+                    try:
+                        particle.ANIMATE_SPRITE.render(self._win.surf)
+                    except: ...
+                    
                     
             #? RENDER SHAPES -----------------------------------------------------------------------------------------------------------------
             
@@ -390,29 +454,64 @@ class ParticleSpace:
                 
                 self._win.surf.blit(surf, center_rect(particle.POS, surf.get_size(), True), special_flags=particle.LIGHT_MODE) 
             #? RENDER LIGHT ------------------------------------------------------------------------------------------------------------------
+    
+    def run_kill_events(self):
+        for i, particle in enumerate( self._space ):
+            if particle.KILL_EVENT is not None:
+                if particle.KILL_EVENT(index = i, particle = particle):
+                    del self._space[i]
+                    break
             
-    def update(self, del_event_: callable):
+    def update(self, del_event_: callable, upd_event_: Callable):
         for particle in self._space:
-            # speed using -------------------------------------------------
-            particle.SPEED.x+=particle.GRAVITY_VECTOR[0]
-            particle.SPEED.y+=particle.GRAVITY_VECTOR[1]
-            if particle.SPEED_ROTATION:
-
-                particle.SPEED.rotate(particle.SPEED_ROTATION_ANGLE)
-            particle.SPEED*=particle.SPEED_FRICTION
             
-
-            particle.POS[0]+=particle.SPEED.x
-            particle.POS[1]+=particle.SPEED.y
             # speed using -------------------------------------------------
+            if particle.COLLIDER is None:
+                particle.SPEED.x+=particle.GRAVITY_VECTOR[0]
+                particle.SPEED.y+=particle.GRAVITY_VECTOR[1]
+                if particle.SPEED_ROTATION:
+                    particle.SPEED.rotate(particle.SPEED_ROTATION_ANGLE)
+                    
+                particle.SPEED*=particle.SPEED_FRICTION
+                
+                particle.POS[0]+=particle.SPEED.x
+                particle.POS[1]+=particle.SPEED.y
+            else:
+                
+                
+                if particle.SHAPE == particle_shapes.CIRCLE:
+                    
+                    particle.COLLIDER.w = particle.RADIUS*2
+                    particle.COLLIDER.h = particle.RADIUS*2
+                    particle.POS[0] = particle.COLLIDER.x
+                    particle.POS[1] = particle.COLLIDER.y
+                elif particle.SHAPE == particle_shapes.RECT:
+                
+                    particle.POS[0] = particle.COLLIDER.center_x
+                    particle.POS[1] = particle.COLLIDER.center_y
+                    particle.COLLIDER.w = particle.SIZE[0]
+                    particle.COLLIDER.h = particle.SIZE[1]
+            # speed using -------------------------------------------------
+            
+            if particle is not None:
+                particle.GRADIENT_STEP+=1
+                if particle.GRADIENT_STEP==particle.GRADIENT_MAX_STEP:
+                    particle.GRADIENT_STEP = 0
             
             # sprite methods ----------------------------------------------
+            
             if particle.SPRITE_ANGLE_TYPE == sprite_angle_types.TO_ROTATE:
                 particle.SPRITE_START_ANGLE += particle.SPRITE_ROTATE_ANGLE
             elif particle.SPRITE_ANGLE_TYPE == sprite_angle_types.TO_VECTOR:
                 particle.SPRITE_START_ANGLE = particle.SPEED.get_angle() + particle.SPRITE_ADD_ANGLE
                 
+            if particle.ANIMATE_SPRITE_ANGLE_TYPE == sprite_angle_types.TO_ROTATE:
+                particle.ANIMATE_SPRITE_START_ANGLE += particle.ANIMATE_SPRITE_ROTATE_ANGLE
+            elif particle.ANIMATE_SPRITE_ANGLE_TYPE == sprite_angle_types.TO_VECTOR:
+                particle.ANIMATE_SPRITE_START_ANGLE = particle.SPEED.get_angle() + particle.ANIMATE_SPRITE_ADD_ANGLE
             
+            if particle.ANIMATE_SPRITE is not None:
+                particle.ANIMATE_SPRITE.update()
             # sprite methods ----------------------------------------------
             
             # timer methods -----------------------------------------------
@@ -425,17 +524,36 @@ class ParticleSpace:
                     particle.SIZE[1]+=particle.SIZE_RESIZE[1]*self._win.delta
                 if particle.SHAPE == particle_shapes.IMAGE:
                     particle.SPRITE_START_SCALE += particle.SPRITE_SCALE_RESIZE*self._win.delta
+                if particle.SHAPE == particle_shapes.ANIMATE_IMAGE:
+                    particle.ANIMATE_SPRITE_START_SCALE += particle.ANIMATE_SPRITE_SCALE_RESIZE*self._win.delta
+                
+            if int(particle.TIMER) % particle.UPDATE_EVENT_TIME == 0:
+                upd_event_(particle)
             
             
             # timer methods -----------------------------------------------
 
         start_space = set(self._space)
         self._space = list(filter(lambda elem: elem.RADIUS>0, self._space))
+        self._space = list(filter(lambda elem: elem.SIZE[0]>0 and elem.SIZE[1]>0, self._space))
         self._space = list(filter(lambda elem: elem.SPRITE_START_SCALE>0, self._space))
+        self._space = list(filter(lambda elem: elem.ANIMATE_SPRITE_START_SCALE>0, self._space))
+        self.run_kill_events()
         end_space = set(self._space)
         del_space = start_space - end_space
+        
         if len(del_space)>0:
             del_event_(list(del_space), self)
+            
+        #particle_ids = list(map(lambda elem: elem.ID, self._space))
+        #try:
+        #    for i, kollider in enumerate( self._simulate_space._space ):
+        #        try:
+        #            if kollider._id not in particle_ids and not kollider.statick:
+        #                del self._simulate_space._space[i]
+        #        except:...
+        #except:...
+            
         
 class ParticleTurbulesity:
     class MagnetCircle:
@@ -479,62 +597,81 @@ class ParticleTurbulesity:
                     if in_rect(turbulensity.pos, turbulensity.size, particle.POS):
                         particle.SPEED+=turbulensity.strange_vector
 
-
 if __name__ == '__main__':
     
-    win = Window()
+    win = Window(size=[1000,700])
     
     p = Particle()
-    p.set('shape',particle_shapes.IMAGE)
+    p.set('shape',particle_shapes.CIRCLE)
     p.set('color',(255,130,200))
-    p.set('speed',Vector2(0,0))
-    p.set('size_randomer',[0,0])
-    p.set('speed_angle',-90)
-    p.set('speed_duration',180)
+    p.SPEED_DURATION = 180
+    p.SPEED = Vector2(0,6)  
+    p.RESIZE_START_TIME = 20
+    p.COLLIDER_BOUNSING = Vector2(0.5,0.5)
+    p.NAME = 's'
+    p.UPDATE_EVENT_TIME = 1
     
-    p.SPEED_FRICTION = 0.99
-    p.SPEED_RANDOMER = 2
-    p.RESIZE_START_TIME = 100
-    p.SPRITE_SCALE_RANDOMER = 2
-    p.SPRITE_LIST = [ Sprite('api\ppp.png') ]
-    p.SPRITE_START_SCALE = 1
-    p.SPRITE_SCALE_RESIZE = -0.1
-    p.SPRITE_ROTATE_ANGLE = 0.1
-    p.SPRITE_ANGLE_TYPE = sprite_angle_types.TO_ROTATE
-    p.SPRITE_ADD_ANGLE = -45
+    p2 = Particle()
+    p2.set('shape',particle_shapes.CIRCLE)
+    p2.set('color',(255,130,200))
+    p2.SPEED_DURATION = 180
+    p2.SPEED = Vector2(0,0)  
+    p2.COLLIDER_BOUNSING = Vector2(0.5,0.5)
+    
+    
     
 
     
 
     space = ParticleSpace([0,0],[800,650],win)
-    spawn = ParticleSpawner(type_=particle_spawner_types.CIRCLE,  pos_=[300,300],radius_=50)
+    spawn = ParticleSpawner(type_=particle_spawner_types.CIRCLE,  pos_=[300,300],radius_=1)
 
-    ts = ParticleTurbulesity()
-    mag = ParticleTurbulesity.MagnetCircle([160,100],150,0.05)
-    mag2 = ParticleTurbulesity.MagnetRect([300,100],[200,100],Vector2(0.01,0))
-    ts.add(mag)
-    ts.add(mag2)
+    
+    
+    Colliders.GRAVITY = Vector2(0,0.5)
+
 
     events = MouseEventHandler()
-    events.AddEvent(Mouse(Mouse.left, Mouse.click_event,'cl'))
+    events.AddEvent(Mouse(Mouse.left, Mouse.press_event,'cl'))
     
-    while win(fps='max',base_color=(255,255,255)):
-        ts.simulate(space)
-        mag.draw(win)
-        mag2.draw(win)
+    s= Colliders(win.surf)
+    s.add(Colliders.CRect([0,600],[1920,100]))
+    s.render_all_staticks = True
+    
+    
+    c = ParticleSpawner(pos_=[0,0],size_=[1,1])
+    def update(particle):
+        global space
+        c._pos = particle.POS
         
+        if particle.NAME == 's':
+            p2.RADIUS = particle.RADIUS
+            space.add(p2, c, 1, 1)
+        
+
+    while win(fps=60,base_color=(0,0,0)):
+
         space.tick()
         
-        spawn._pos = Mouse.position()
+        s.update()
+        
+        spawn._pos = Mouse.pos
         events.EventsUpdate()
         
-        if events.GetEventById('cl'):
-            space.add(p, spawn,10,1)
+        
+        space.add(p, spawn,1,1, s)
         
 
         space.render()
-        space.update(lambda a, b:None)
-    
+        
+        
+        space.update(lambda a, b: None, update)
+
+
+        
+
+        #print(space._space)
+        
     
 
     
